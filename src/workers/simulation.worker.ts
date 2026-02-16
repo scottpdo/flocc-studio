@@ -5,7 +5,7 @@
  * Receives compiled model code, executes it, and sends state updates.
  */
 
-import { Environment, Agent, utils } from 'flocc';
+import { Environment, Agent, utils, Rule } from 'flocc';
 
 // ============================================================================
 // Types
@@ -101,6 +101,7 @@ function initialize(modelCode: string) {
     (self as any).Agent = Agent;
     (self as any).Environment = Environment;
     (self as any).utils = utils;
+    (self as any).Rule = Rule;
 
     // Execute the compiled model code
     // This sets up self.modelSetup, self.AGENT_TYPES, etc.
