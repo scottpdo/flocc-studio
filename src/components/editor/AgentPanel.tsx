@@ -6,13 +6,12 @@
  * Left sidebar for managing agent types and populations.
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { nanoid } from 'nanoid';
 import { useModelStore } from '@/stores/model';
 import type { AgentType, Population } from '@/types';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
-const SHAPES = ['circle', 'square', 'triangle'] as const;
 
 interface AgentPanelProps {
   selectedAgentId: string | null;
@@ -27,6 +26,9 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
   const addPopulation = useModelStore((s) => s.addPopulation);
   const updatePopulation = useModelStore((s) => s.updatePopulation);
   const removePopulation = useModelStore((s) => s.removePopulation);
+
+  // Track which agent name is being edited
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   if (!model) return null;
 
@@ -54,6 +56,8 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
     addPopulation(newPop);
 
     onSelectAgent(id);
+    // Start editing the name immediately
+    setEditingId(id);
   };
 
   // Get population for an agent type
@@ -82,12 +86,13 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
           model.agentTypes.map((agent) => {
             const pop = getPopulation(agent.id);
             const isSelected = selectedAgentId === agent.id;
+            const isEditing = editingId === agent.id;
 
             return (
               <div
                 key={agent.id}
                 onClick={() => onSelectAgent(isSelected ? null : agent.id)}
-                className={`p-3 rounded-lg cursor-pointer transition ${
+                className={`p-3 rounded-lg cursor-pointer transition group ${
                   isSelected
                     ? 'bg-blue-600/20 border border-blue-500'
                     : 'bg-gray-800 hover:bg-gray-750 border border-transparent'
@@ -120,7 +125,14 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{agent.name}</div>
+                    {/* Inline editable name */}
+                    <InlineEditableName
+                      value={agent.name}
+                      isEditing={isEditing}
+                      onStartEdit={() => setEditingId(agent.id)}
+                      onEndEdit={() => setEditingId(null)}
+                      onChange={(name) => updateAgentType(agent.id, { name })}
+                    />
                     <div className="text-xs text-gray-500">
                       {pop?.count ?? 0} agents · {agent.behaviors.length} behavior
                       {agent.behaviors.length !== 1 ? 's' : ''}
@@ -164,6 +176,61 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
           })
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// InlineEditableName
+// ============================================================================
+
+interface InlineEditableNameProps {
+  value: string;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onEndEdit: () => void;
+  onChange: (value: string) => void;
+}
+
+function InlineEditableName({ value, isEditing, onStartEdit, onEndEdit, onChange }: InlineEditableNameProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onEndEdit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onEndEdit();
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="font-medium bg-gray-700 border border-blue-500 rounded px-1 -ml-1 w-full focus:outline-none"
+      />
+    );
+  }
+
+  return (
+    <div
+      className="font-medium truncate hover:text-blue-400 cursor-text"
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onStartEdit();
+      }}
+      title="Double-click to edit"
+    >
+      {value}
     </div>
   );
 }

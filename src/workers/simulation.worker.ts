@@ -5,7 +5,7 @@
  * Receives compiled model code, executes it, and sends state updates.
  */
 
-import { Environment, Agent } from 'flocc';
+import { Environment, Agent, utils } from 'flocc';
 
 // ============================================================================
 // Types
@@ -97,9 +97,10 @@ function initialize(modelCode: string) {
     // Create new environment
     env = new Environment();
 
-    // Make Agent available in the eval context
+    // Make Flocc classes available in the eval context
     (self as any).Agent = Agent;
     (self as any).Environment = Environment;
+    (self as any).utils = utils;
 
     // Execute the compiled model code
     // This sets up self.modelSetup, self.AGENT_TYPES, etc.

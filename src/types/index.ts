@@ -74,6 +74,8 @@ export type BehaviorType =
   | 'random-walk'
   | 'move-toward'
   | 'move-away'
+  | 'wiggle'
+  | 'bounce'
   | 'follow-gradient'
   | 'if-nearby'
   | 'on-collision'

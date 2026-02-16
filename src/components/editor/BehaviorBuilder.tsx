@@ -50,7 +50,7 @@ export function BehaviorBuilder({ agentType }: BehaviorBuilderProps) {
         )}
       </div>
 
-      {/* Add behavior dropdown */}
+      {/* Add behavior dropdown - grouped by category */}
       <div className="relative">
         <select
           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
@@ -62,11 +62,20 @@ export function BehaviorBuilder({ agentType }: BehaviorBuilderProps) {
           }}
         >
           <option value="">+ Add Behavior</option>
-          {BEHAVIOR_LIBRARY.map((def) => (
-            <option key={def.type} value={def.type}>
-              {def.name}
-            </option>
-          ))}
+          <optgroup label="Movement">
+            {BEHAVIOR_LIBRARY.filter(d => d.category === 'movement').map((def) => (
+              <option key={def.type} value={def.type}>
+                {def.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Lifecycle">
+            {BEHAVIOR_LIBRARY.filter(d => d.category === 'lifecycle').map((def) => (
+              <option key={def.type} value={def.type}>
+                {def.name}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </div>
     </div>

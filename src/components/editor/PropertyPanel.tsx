@@ -6,6 +6,7 @@
  * Right sidebar for editing the selected agent type's properties and behaviors.
  */
 
+import { useState, useRef, useEffect } from 'react';
 import { useModelStore } from '@/stores/model';
 import { BehaviorBuilder } from './BehaviorBuilder';
 import type { AgentType } from '@/types';
@@ -24,6 +25,21 @@ interface PropertyPanelProps {
 export function PropertyPanel({ selectedAgentId }: PropertyPanelProps) {
   const model = useModelStore((s) => s.model);
   const updateAgentType = useModelStore((s) => s.updateAgentType);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  // Reset editing state when selection changes
+  useEffect(() => {
+    setIsEditingName(false);
+  }, [selectedAgentId]);
 
   if (!model || !selectedAgentId) {
     return (
@@ -41,18 +57,30 @@ export function PropertyPanel({ selectedAgentId }: PropertyPanelProps) {
 
   return (
     <div className="p-4 h-full overflow-y-auto">
-      <h2 className="font-semibold mb-4">{agentType.name}</h2>
-
-      {/* Name */}
-      <div className="mb-4">
-        <label className="block text-sm text-gray-400 mb-1">Name</label>
+      {/* Inline editable title */}
+      {isEditingName ? (
         <input
+          ref={nameInputRef}
           type="text"
           value={agentType.name}
           onChange={(e) => updateAgentType(agentType.id, { name: e.target.value })}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          onBlur={() => setIsEditingName(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+              setIsEditingName(false);
+            }
+          }}
+          className="text-xl font-semibold mb-4 bg-gray-800 border border-blue-500 rounded px-2 py-1 -ml-2 w-full focus:outline-none"
         />
-      </div>
+      ) : (
+        <h2
+          className="text-xl font-semibold mb-4 cursor-text hover:text-blue-400 transition"
+          onDoubleClick={() => setIsEditingName(true)}
+          title="Double-click to edit"
+        >
+          {agentType.name}
+        </h2>
+      )}
 
       {/* Color */}
       <div className="mb-4">
