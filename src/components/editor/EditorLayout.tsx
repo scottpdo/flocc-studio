@@ -1,10 +1,19 @@
 'use client';
 
+/**
+ * EditorLayout
+ * 
+ * Main editor shell with panels and canvas.
+ */
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useModelStore, useCanUndo, useCanRedo, useModelUndo, useModelRedo } from '@/stores/model';
 import { useSimulationStore } from '@/stores/simulation';
 import { useUI } from '@/contexts/UIContext';
+import { useSimulation } from '@/lib/flocc/useSimulation';
 import { AgentPanel } from './AgentPanel';
+import { PropertyPanel } from './PropertyPanel';
 import { Canvas } from '@/components/simulation/Canvas';
 import { Controls } from '@/components/simulation/Controls';
 
@@ -16,13 +25,34 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   const model = useModelStore((s) => s.model);
   const isDirty = useModelStore((s) => s.isDirty);
   const updateName = useModelStore((s) => s.updateName);
-  
+
   const canUndo = useCanUndo();
   const canRedo = useCanRedo();
   const undo = useModelUndo();
   const redo = useModelRedo();
 
-  const { leftPanelOpen, rightPanelOpen, toggleLeftPanel, toggleRightPanel } = useUI();
+  const { leftPanelOpen, rightPanelOpen } = useUI();
+
+  // Selection state
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  // Simulation hook
+  const { initializeSimulation } = useSimulation();
+
+  // Re-initialize simulation when model changes significantly
+  const reset = useSimulationStore((s) => s.reset);
+  useEffect(() => {
+    // Debounce to avoid too many recompilations
+    const timeout = setTimeout(() => {
+      initializeSimulation();
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [
+    model?.agentTypes,
+    model?.populations,
+    model?.environment,
+    initializeSimulation,
+  ]);
 
   if (!model) return null;
 
@@ -33,9 +63,9 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
         <Link href="/" className="font-bold text-lg">
           Flocc
         </Link>
-        
+
         <div className="h-6 w-px bg-gray-700" />
-        
+
         {/* Model Name */}
         <input
           type="text"
@@ -89,7 +119,10 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
             leftPanelOpen ? 'w-72' : 'w-0'
           } border-r border-gray-800 bg-gray-900 transition-all overflow-hidden shrink-0`}
         >
-          <AgentPanel />
+          <AgentPanel
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={setSelectedAgentId}
+          />
         </aside>
 
         {/* Center - Canvas */}
@@ -97,19 +130,16 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
           <div className="flex-1 p-4">
             <Canvas />
           </div>
-          <Controls />
+          <Controls onReset={initializeSimulation} />
         </main>
 
         {/* Right Panel - Properties */}
         <aside
           className={`${
-            rightPanelOpen ? 'w-72' : 'w-0'
+            rightPanelOpen ? 'w-80' : 'w-0'
           } border-l border-gray-800 bg-gray-900 transition-all overflow-hidden shrink-0`}
         >
-          <div className="p-4">
-            <h2 className="font-semibold mb-4">Properties</h2>
-            <p className="text-gray-500 text-sm">Select an agent type or behavior to edit its properties</p>
-          </div>
+          <PropertyPanel selectedAgentId={selectedAgentId} />
         </aside>
       </div>
     </div>

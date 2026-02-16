@@ -1,16 +1,32 @@
 'use client';
 
+/**
+ * Controls
+ * 
+ * Playback controls for the simulation.
+ */
+
 import { useSimulationStore } from '@/stores/simulation';
 
-export function Controls() {
+interface ControlsProps {
+  onReset?: () => void;
+}
+
+export function Controls({ onReset }: ControlsProps) {
   const status = useSimulationStore((s) => s.status);
   const tick = useSimulationStore((s) => s.tick);
   const speed = useSimulationStore((s) => s.speed);
+  const agents = useSimulationStore((s) => s.agents);
   const play = useSimulationStore((s) => s.play);
   const pause = useSimulationStore((s) => s.pause);
   const step = useSimulationStore((s) => s.step);
   const reset = useSimulationStore((s) => s.reset);
   const setSpeed = useSimulationStore((s) => s.setSpeed);
+
+  const handleReset = () => {
+    reset();
+    onReset?.();
+  };
 
   return (
     <div className="h-14 border-t border-gray-800 bg-gray-900 flex items-center px-4 gap-4 shrink-0">
@@ -19,7 +35,7 @@ export function Controls() {
         {status === 'running' ? (
           <button
             onClick={pause}
-            className="p-2 rounded bg-gray-800 hover:bg-gray-700 transition"
+            className="p-2 rounded bg-yellow-600 hover:bg-yellow-500 transition"
             title="Pause"
           >
             ⏸
@@ -42,7 +58,7 @@ export function Controls() {
           ⏭
         </button>
         <button
-          onClick={reset}
+          onClick={handleReset}
           className="p-2 rounded bg-gray-800 hover:bg-gray-700 transition"
           title="Reset"
         >
@@ -55,6 +71,13 @@ export function Controls() {
       {/* Tick counter */}
       <div className="text-sm text-gray-400">
         Tick: <span className="font-mono text-white">{tick}</span>
+      </div>
+
+      <div className="h-6 w-px bg-gray-700" />
+
+      {/* Agent count */}
+      <div className="text-sm text-gray-400">
+        Agents: <span className="font-mono text-white">{agents.length}</span>
       </div>
 
       <div className="h-6 w-px bg-gray-700" />
