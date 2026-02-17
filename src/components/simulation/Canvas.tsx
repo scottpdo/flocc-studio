@@ -46,7 +46,7 @@ export function Canvas({ onContainerReady }: CanvasProps) {
         {/* Container for CanvasRenderer - canvas will be scaled via CSS */}
         <div 
           ref={containerRef} 
-          className="flex items-center justify-center [&>canvas]:max-w-full [&>canvas]:max-h-full [&>canvas]:w-auto [&>canvas]:h-auto"
+          className="w-full h-full flex items-center justify-center [&>canvas]:max-w-full [&>canvas]:max-h-full [&>canvas]:w-auto [&>canvas]:h-auto"
         />
         
         {/* Placeholder overlay */}
