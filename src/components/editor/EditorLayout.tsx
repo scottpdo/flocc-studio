@@ -3,14 +3,13 @@
 /**
  * EditorLayout
  * 
- * Main editor shell with panels and canvas.
+ * Main editor shell with sliding panel and canvas.
+ * Layout: LEFT sidebar (Agent Types + Properties panel) | RIGHT (Canvas)
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useModelStore, useCanUndo, useCanRedo, useModelUndo, useModelRedo } from '@/stores/model';
-import { useSimulationStore } from '@/stores/simulation';
-import { useUI } from '@/contexts/UIContext';
 import { useSimulation } from '@/lib/flocc/useSimulation';
 import { AgentPanel } from './AgentPanel';
 import { PropertyPanel } from './PropertyPanel';
@@ -31,9 +30,7 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   const undo = useModelUndo();
   const redo = useModelRedo();
 
-  const { leftPanelOpen, rightPanelOpen } = useUI();
-
-  // Selection state
+  // Selection state - controls whether properties panel is shown
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   // Simulation hook
@@ -42,7 +39,6 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   // Handle canvas container ready
   const handleContainerReady = useCallback((container: HTMLDivElement) => {
     setContainer(container);
-    // Initialize after container is set
     setTimeout(() => {
       initializeSimulation();
     }, 50);
@@ -50,7 +46,6 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
 
   // Re-initialize simulation when model changes significantly
   useEffect(() => {
-    // Debounce to avoid too many recompilations
     const timeout = setTimeout(() => {
       initializeSimulation();
     }, 500);
@@ -62,7 +57,26 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
     initializeSimulation,
   ]);
 
+  // Close properties panel on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedAgentId) {
+        setSelectedAgentId(null);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedAgentId]);
+
+  // Close properties panel function
+  const closePropertiesPanel = useCallback(() => {
+    setSelectedAgentId(null);
+  }, []);
+
   if (!model) return null;
+
+  const propertiesPanelOpen = selectedAgentId !== null;
 
   return (
     <div className="h-screen bg-gray-950 text-white flex flex-col">
@@ -121,34 +135,52 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Agent Types */}
-        <aside
-          className={`${
-            leftPanelOpen ? 'w-72' : 'w-0'
-          } border-r border-gray-800 bg-gray-900 transition-all overflow-hidden shrink-0`}
-        >
-          <AgentPanel
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={setSelectedAgentId}
-          />
+        {/* Left Sidebar - Agent Types + Properties Panel */}
+        <aside className="flex shrink-0 border-r border-gray-800">
+          {/* Agent Types Panel - Always visible */}
+          <div className="w-64 bg-gray-900 overflow-hidden">
+            <AgentPanel
+              selectedAgentId={selectedAgentId}
+              onSelectAgent={setSelectedAgentId}
+            />
+          </div>
+
+          {/* Properties Panel - Slides out when agent selected */}
+          <div
+            className={`bg-gray-900 border-l border-gray-800 overflow-hidden transition-all duration-200 ease-in-out ${
+              propertiesPanelOpen ? 'w-80' : 'w-0'
+            }`}
+          >
+            <div className="w-80 h-full flex flex-col">
+              {/* Close button header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+                <span className="text-sm font-medium text-gray-400">Properties</span>
+                <button
+                  onClick={closePropertiesPanel}
+                  className="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-white transition"
+                  title="Close (Esc)"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Properties content */}
+              <div className="flex-1 overflow-y-auto">
+                <PropertyPanel selectedAgentId={selectedAgentId} />
+              </div>
+            </div>
+          </div>
         </aside>
 
-        {/* Center - Canvas */}
+        {/* Right - Canvas */}
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 p-4">
             <Canvas onContainerReady={handleContainerReady} />
           </div>
           <Controls onReset={initializeSimulation} />
         </main>
-
-        {/* Right Panel - Properties */}
-        <aside
-          className={`${
-            rightPanelOpen ? 'w-80' : 'w-0'
-          } border-l border-gray-800 bg-gray-900 transition-all overflow-hidden shrink-0`}
-        >
-          <PropertyPanel selectedAgentId={selectedAgentId} />
-        </aside>
       </div>
     </div>
   );
