@@ -16,7 +16,7 @@ export function Controls({ onReset }: ControlsProps) {
   const status = useSimulationStore((s) => s.status);
   const tick = useSimulationStore((s) => s.tick);
   const speed = useSimulationStore((s) => s.speed);
-  const agents = useSimulationStore((s) => s.agents);
+  const agentCount = useSimulationStore((s) => s.agentCount);
   const play = useSimulationStore((s) => s.play);
   const pause = useSimulationStore((s) => s.pause);
   const step = useSimulationStore((s) => s.step);
@@ -77,7 +77,7 @@ export function Controls({ onReset }: ControlsProps) {
 
       {/* Agent count */}
       <div className="text-sm text-gray-400">
-        Agents: <span className="font-mono text-white">{agents.length}</span>
+        Agents: <span className="font-mono text-white">{agentCount}</span>
       </div>
 
       <div className="h-6 w-px bg-gray-700" />

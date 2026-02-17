@@ -1,35 +1,46 @@
 /**
  * Simulation Store — Zustand store for runtime simulation state
- * Tracks playback state, current tick, agent snapshots, and metrics
+ * Tracks playback state, current tick, and agent count
+ * 
+ * Now uses main-thread SimulationEngine instead of Web Worker
  */
 
 import { create } from 'zustand';
-import type { AgentSnapshot, SimulationState } from '@/types';
+import type { SimulationEngine } from '@/lib/flocc/SimulationEngine';
 
 // ============================================================================
 // Store Interface
 // ============================================================================
 
-interface SimulationStore extends SimulationState {
+type SimulationStatus = 'idle' | 'running' | 'paused';
+
+interface SimulationStore {
+  // State
+  status: SimulationStatus;
+  tick: number;
+  agentCount: number;
+  speed: number;
+
+  // Engine reference
+  engine: SimulationEngine | null;
+  setEngine: (engine: SimulationEngine | null) => void;
+
   // Playback control
   play: () => void;
   pause: () => void;
   step: () => void;
   reset: () => void;
 
-  // State updates (called from worker)
+  // State updates (called from engine)
   setTick: (tick: number) => void;
-  setAgents: (agents: AgentSnapshot[]) => void;
-  setMetrics: (metrics: Record<string, number>) => void;
-  updateFromWorker: (data: { tick: number; agents: AgentSnapshot[]; metrics?: Record<string, number> }) => void;
+  setAgentCount: (count: number) => void;
+  updateState: (tick: number, agentCount: number) => void;
 
   // Speed control
-  speed: number; // ticks per frame
   setSpeed: (speed: number) => void;
 
-  // Worker reference
-  worker: Worker | null;
-  setWorker: (worker: Worker | null) => void;
+  // Status
+  setStatus: (status: SimulationStatus) => void;
 }
 
 // ============================================================================
@@ -40,64 +51,68 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   // Initial state
   status: 'idle',
   tick: 0,
-  agents: [],
-  metrics: {},
+  agentCount: 0,
   speed: 1,
-  worker: null,
+  engine: null,
+
+  // Engine management
+  setEngine: (engine) => set({ engine }),
 
   // Playback control
   play: () => {
-    const { worker, status } = get();
-    if (worker && status !== 'running') {
-      worker.postMessage({ type: 'play' });
+    const { engine, status } = get();
+    if (engine && status !== 'running') {
+      engine.play();
       set({ status: 'running' });
     }
   },
 
   pause: () => {
-    const { worker, status } = get();
-    if (worker && status === 'running') {
-      worker.postMessage({ type: 'pause' });
+    const { engine, status } = get();
+    if (engine && status === 'running') {
+      engine.pause();
       set({ status: 'paused' });
     }
   },
 
   step: () => {
-    const { worker } = get();
-    if (worker) {
-      worker.postMessage({ type: 'step' });
+    const { engine } = get();
+    if (engine) {
+      engine.step();
+      set({ 
+        status: 'paused',
+        tick: engine.getTick(),
+        agentCount: engine.getAgentCount(),
+      });
     }
   },
 
   reset: () => {
-    const { worker } = get();
-    if (worker) {
-      worker.postMessage({ type: 'reset' });
-      set({ status: 'idle', tick: 0, agents: [], metrics: {} });
+    const { engine } = get();
+    if (engine) {
+      engine.reset();
+      set({ 
+        status: 'idle', 
+        tick: 0, 
+        agentCount: engine.getAgentCount(),
+      });
     }
   },
 
   // State updates
   setTick: (tick) => set({ tick }),
-  setAgents: (agents) => set({ agents }),
-  setMetrics: (metrics) => set({ metrics }),
-
-  updateFromWorker: (data) =>
-    set({
-      tick: data.tick,
-      agents: data.agents,
-      metrics: data.metrics ?? get().metrics,
-    }),
+  setAgentCount: (agentCount) => set({ agentCount }),
+  updateState: (tick, agentCount) => set({ tick, agentCount }),
 
   // Speed control
   setSpeed: (speed) => {
-    const { worker } = get();
-    if (worker) {
-      worker.postMessage({ type: 'set-speed', ticksPerFrame: speed });
+    const { engine } = get();
+    if (engine) {
+      engine.setSpeed(speed);
     }
     set({ speed });
   },
 
-  // Worker management
-  setWorker: (worker) => set({ worker }),
+  // Status
+  setStatus: (status) => set({ status }),
 }));

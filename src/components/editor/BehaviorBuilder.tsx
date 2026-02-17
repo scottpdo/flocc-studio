@@ -69,6 +69,13 @@ export function BehaviorBuilder({ agentType }: BehaviorBuilderProps) {
               </option>
             ))}
           </optgroup>
+          <optgroup label="Flocking">
+            {BEHAVIOR_LIBRARY.filter(d => d.category === 'flocking').map((def) => (
+              <option key={def.type} value={def.type}>
+                {def.name}
+              </option>
+            ))}
+          </optgroup>
           <optgroup label="Lifecycle">
             {BEHAVIOR_LIBRARY.filter(d => d.category === 'lifecycle').map((def) => (
               <option key={def.type} value={def.type}>

@@ -48,7 +48,7 @@ export interface AgentType {
   id: string;
   name: string;
   color: string;
-  shape: 'circle' | 'triangle' | 'square' | 'custom';
+  shape: 'circle' | 'triangle' | 'square' | 'arrow' | 'custom';
   size: number;
   properties: PropertyDef[];
   behaviors: Behavior[];
@@ -72,10 +72,14 @@ export interface Behavior {
 
 export type BehaviorType =
   | 'random-walk'
+  | 'move-forward'
   | 'move-toward'
   | 'move-away'
   | 'wiggle'
   | 'bounce'
+  | 'separate'
+  | 'align'
+  | 'cohere'
   | 'follow-gradient'
   | 'if-nearby'
   | 'on-collision'

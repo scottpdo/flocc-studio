@@ -15,7 +15,7 @@ export interface BehaviorDef {
   type: BehaviorType;
   name: string;
   description: string;
-  category: 'movement' | 'interaction' | 'lifecycle';
+  category: 'movement' | 'flocking' | 'interaction' | 'lifecycle';
   params: ParamDef[];
 }
 
@@ -38,6 +38,15 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
     type: 'random-walk',
     name: 'Random Walk',
     description: 'Move in a random direction each tick',
+    category: 'movement',
+    params: [
+      { key: 'speed', name: 'Speed', type: 'number', default: 2, min: 0.1, max: 20, step: 0.1 },
+    ],
+  },
+  {
+    type: 'move-forward',
+    name: 'Move Forward',
+    description: 'Move in the current velocity direction',
     category: 'movement',
     params: [
       { key: 'speed', name: 'Speed', type: 'number', default: 2, min: 0.1, max: 20, step: 0.1 },
@@ -79,6 +88,39 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
     category: 'movement',
     params: [],
   },
+  
+  // Flocking behaviors
+  {
+    type: 'separate',
+    name: 'Separate',
+    description: 'Steer away from nearby agents to avoid crowding',
+    category: 'flocking',
+    params: [
+      { key: 'radius', name: 'Radius', type: 'number', default: 25, min: 5, max: 100, step: 5 },
+      { key: 'strength', name: 'Strength', type: 'number', default: 1, min: 0.1, max: 5, step: 0.1 },
+    ],
+  },
+  {
+    type: 'align',
+    name: 'Align',
+    description: 'Steer toward the average heading of nearby agents',
+    category: 'flocking',
+    params: [
+      { key: 'radius', name: 'Radius', type: 'number', default: 50, min: 10, max: 150, step: 5 },
+      { key: 'strength', name: 'Strength', type: 'number', default: 1, min: 0.1, max: 5, step: 0.1 },
+    ],
+  },
+  {
+    type: 'cohere',
+    name: 'Cohere',
+    description: 'Steer toward the center of mass of nearby agents',
+    category: 'flocking',
+    params: [
+      { key: 'radius', name: 'Radius', type: 'number', default: 75, min: 20, max: 200, step: 5 },
+      { key: 'strength', name: 'Strength', type: 'number', default: 1, min: 0.1, max: 5, step: 0.1 },
+    ],
+  },
+  
   // Lifecycle behaviors
   {
     type: 'die',

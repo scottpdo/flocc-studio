@@ -3,58 +3,35 @@
 /**
  * useSimulation Hook
  * 
- * Manages the Web Worker for running Flocc simulations.
- * Handles compilation, initialization, and state updates.
+ * Manages the SimulationEngine for running Flocc simulations.
+ * Handles compilation, initialization, and lifecycle.
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useModelStore } from '@/stores/model';
 import { useSimulationStore } from '@/stores/simulation';
 import { compileModel } from './compiler';
+import { SimulationEngine } from './SimulationEngine';
 
 export function useSimulation() {
-  const workerRef = useRef<Worker | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const engineRef = useRef<SimulationEngine | null>(null);
+  
   const model = useModelStore((s) => s.model);
-  const setWorker = useSimulationStore((s) => s.setWorker);
-  const updateFromWorker = useSimulationStore((s) => s.updateFromWorker);
+  const setEngine = useSimulationStore((s) => s.setEngine);
+  const updateState = useSimulationStore((s) => s.updateState);
+  const setStatus = useSimulationStore((s) => s.setStatus);
+  const speed = useSimulationStore((s) => s.speed);
 
-  // Initialize worker
-  useEffect(() => {
-    // Create worker
-    const worker = new Worker(
-      new URL('../../workers/simulation.worker.ts', import.meta.url),
-      { type: 'module' }
-    );
+  // Set container ref (called from Canvas component)
+  const setContainer = useCallback((container: HTMLDivElement | null) => {
+    containerRef.current = container;
+  }, []);
 
-    workerRef.current = worker;
-    setWorker(worker);
-
-    // Handle messages from worker
-    worker.onmessage = (event) => {
-      const message = event.data;
-
-      if (message.type === 'state') {
-        updateFromWorker({
-          tick: message.tick,
-          agents: message.agents,
-        });
-      } else if (message.type === 'error') {
-        console.error('Simulation error:', message.message);
-      }
-    };
-
-    // Cleanup
-    return () => {
-      worker.terminate();
-      workerRef.current = null;
-      setWorker(null);
-    };
-  }, [setWorker, updateFromWorker]);
-
-  // Compile and send model to worker when model changes
+  // Initialize or re-initialize simulation
   const initializeSimulation = useCallback(() => {
-    const worker = workerRef.current;
-    if (!worker || !model) return;
+    const container = containerRef.current;
+    if (!container || !model) return;
 
     // Only initialize if we have agent types and populations
     if (model.agentTypes.length === 0 || model.populations.length === 0) {
@@ -62,14 +39,53 @@ export function useSimulation() {
     }
 
     try {
-      const modelCode = compileModel(model);
-      worker.postMessage({ type: 'init', modelCode });
+      // Compile model
+      const compiled = compileModel(model);
+
+      // Create or reuse engine
+      if (!engineRef.current) {
+        engineRef.current = new SimulationEngine({
+          container,
+          onTick: (tick, agentCount) => {
+            updateState(tick, agentCount);
+          },
+          onError: (error) => {
+            console.error('Simulation error:', error);
+          },
+        });
+        setEngine(engineRef.current);
+      }
+
+      // Initialize with compiled model
+      engineRef.current.initialize(
+        compiled.setup,
+        compiled.agentTypes,
+        compiled.envConfig
+      );
+
+      // Apply current speed setting
+      engineRef.current.setSpeed(speed);
+
+      // Reset status
+      setStatus('idle');
     } catch (error) {
       console.error('Failed to compile model:', error);
     }
-  }, [model]);
+  }, [model, setEngine, updateState, setStatus, speed]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (engineRef.current) {
+        engineRef.current.cleanup();
+        engineRef.current = null;
+        setEngine(null);
+      }
+    };
+  }, [setEngine]);
 
   return {
+    setContainer,
     initializeSimulation,
   };
 }

@@ -6,7 +6,7 @@
  * Main editor shell with panels and canvas.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useModelStore, useCanUndo, useCanRedo, useModelUndo, useModelRedo } from '@/stores/model';
 import { useSimulationStore } from '@/stores/simulation';
@@ -37,10 +37,18 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   // Simulation hook
-  const { initializeSimulation } = useSimulation();
+  const { setContainer, initializeSimulation } = useSimulation();
+
+  // Handle canvas container ready
+  const handleContainerReady = useCallback((container: HTMLDivElement) => {
+    setContainer(container);
+    // Initialize after container is set
+    setTimeout(() => {
+      initializeSimulation();
+    }, 50);
+  }, [setContainer, initializeSimulation]);
 
   // Re-initialize simulation when model changes significantly
-  const reset = useSimulationStore((s) => s.reset);
   useEffect(() => {
     // Debounce to avoid too many recompilations
     const timeout = setTimeout(() => {
@@ -128,7 +136,7 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
         {/* Center - Canvas */}
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 p-4">
-            <Canvas />
+            <Canvas onContainerReady={handleContainerReady} />
           </div>
           <Controls onReset={initializeSimulation} />
         </main>

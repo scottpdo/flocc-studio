@@ -1,347 +1,542 @@
 /**
  * Model Compiler
  * 
- * Compiles a StudioModel definition into Flocc Rules.
- * Uses the Rule DSL for simple behaviors and helper functions for complex ones.
+ * Compiles a StudioModel definition into executable simulation code.
+ * Generates a setup function and metadata for the SimulationEngine.
  */
 
+import { Environment, Agent, utils } from 'flocc';
 import type { StudioModel, AgentType, Behavior } from '@/types';
+import type { AgentTypeMetadata } from './SimulationEngine';
 
 // ============================================================================
-// Compilation
+// Compilation Result
+// ============================================================================
+
+export interface CompiledModel {
+  setup: (env: Environment) => void;
+  agentTypes: Map<string, AgentTypeMetadata>;
+  envConfig: {
+    width: number;
+    height: number;
+    wraparound: boolean;
+    backgroundColor?: string;
+  };
+}
+
+// ============================================================================
+// Main Compilation Function
 // ============================================================================
 
 /**
- * Compile a StudioModel to a JavaScript module string
- * that can be executed in a Web Worker
+ * Compile a StudioModel to executable simulation code
  */
-export function compileModel(model: StudioModel): string {
-  const lines: string[] = [];
-
-  lines.push(`// Compiled from: ${model.name}`);
-  lines.push(`// Generated: ${new Date().toISOString()}`);
-  lines.push('');
-
-  // Environment constants
-  lines.push('// Environment');
-  lines.push(`const ENV_WIDTH = ${model.environment.width};`);
-  lines.push(`const ENV_HEIGHT = ${model.environment.height};`);
-  lines.push(`const WRAPAROUND = ${model.environment.wraparound};`);
-  lines.push('');
-
-  // Seed random for reproducibility
-  lines.push('// Seed random for reproducibility');
-  lines.push('utils.seed(12345);');
-  lines.push('');
-
-  // Agent type metadata
-  lines.push('// Agent type metadata');
-  lines.push('const AGENT_TYPES = new Map([');
+export function compileModel(model: StudioModel): CompiledModel {
+  // Build agent type metadata
+  const agentTypes = new Map<string, AgentTypeMetadata>();
   for (const agentType of model.agentTypes) {
-    lines.push(`  ['${agentType.id}', ${JSON.stringify({
+    agentTypes.set(agentType.id, {
       id: agentType.id,
       name: agentType.name,
       color: agentType.color,
       shape: agentType.shape,
       size: agentType.size,
-    })}],`);
+    });
   }
-  lines.push(']);');
-  lines.push('');
 
-  // Helper functions
-  lines.push('// Helper: find nearest agent of a type');
-  lines.push(`function findNearest(agent, typeId) {
+  // Build tick functions for each agent type
+  const tickFunctions = new Map<string, (agent: Agent) => void>();
+  for (const agentType of model.agentTypes) {
+    tickFunctions.set(agentType.id, compileAgentTickFunction(agentType, model));
+  }
+
+  // Environment config
+  const envConfig = {
+    width: model.environment.width,
+    height: model.environment.height,
+    wraparound: model.environment.wraparound,
+    backgroundColor: model.environment.backgroundColor,
+  };
+
+  // Setup function
+  const setup = (env: Environment) => {
+    // Seed random for reproducibility
+    utils.seed(12345);
+
+    for (const pop of model.populations) {
+      const agentType = model.agentTypes.find((t) => t.id === pop.agentTypeId);
+      if (!agentType) continue;
+
+      const tickFn = tickFunctions.get(agentType.id);
+
+      for (let i = 0; i < pop.count; i++) {
+        const agent = new Agent();
+        agent.set('typeId', agentType.id);
+        agent.set('x', utils.random(0, envConfig.width - 1, true));
+        agent.set('y', utils.random(0, envConfig.height - 1, true));
+        
+        // Initialize velocity for movement behaviors
+        const hasMoveForward = agentType.behaviors.some(b => b.type === 'move-forward' && b.enabled);
+        const hasFlocking = agentType.behaviors.some(b => 
+          ['separate', 'align', 'cohere'].includes(b.type) && b.enabled
+        );
+        
+        if (hasMoveForward || hasFlocking) {
+          // Random initial velocity
+          const angle = utils.random(0, Math.PI * 2, true);
+          const speed = agentType.behaviors.find(b => b.type === 'move-forward')?.params.speed ?? 2;
+          agent.set('vx', Math.cos(angle) * speed);
+          agent.set('vy', Math.sin(angle) * speed);
+        }
+
+        if (tickFn) {
+          agent.set('tick', tickFn);
+        }
+
+        env.addAgent(agent);
+      }
+    }
+  };
+
+  return { setup, agentTypes, envConfig };
+}
+
+// ============================================================================
+// Agent Tick Function Compilation
+// ============================================================================
+
+/**
+ * Compile tick function for an agent type
+ */
+function compileAgentTickFunction(agentType: AgentType, model: StudioModel): (agent: Agent) => void {
+  const enabledBehaviors = agentType.behaviors.filter((b) => b.enabled);
+  
+  if (enabledBehaviors.length === 0) {
+    return () => {}; // No-op if no behaviors
+  }
+
+  // Compile each behavior to a function
+  const behaviorFns = enabledBehaviors.map((behavior) => 
+    compileBehavior(behavior, model, agentType.id)
+  ).filter((fn): fn is (agent: Agent) => void => fn !== null);
+
+  // Combined tick function
+  return (agent: Agent) => {
+    for (const fn of behaviorFns) {
+      fn(agent);
+    }
+  };
+}
+
+/**
+ * Compile a single behavior to a function
+ */
+function compileBehavior(
+  behavior: Behavior, 
+  model: StudioModel, 
+  agentTypeId: string
+): ((agent: Agent) => void) | null {
+  const { type, params } = behavior;
+  const envWidth = model.environment.width;
+  const envHeight = model.environment.height;
+  const wraparound = model.environment.wraparound;
+
+  switch (type) {
+    case 'random-walk': {
+      const speed = params.speed ?? 2;
+      return (agent: Agent) => {
+        const angle = utils.random(0, Math.PI * 2, true);
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        let nx = x + Math.cos(angle) * speed;
+        let ny = y + Math.sin(angle) * speed;
+        
+        if (wraparound) {
+          nx = ((nx % envWidth) + envWidth) % envWidth;
+          ny = ((ny % envHeight) + envHeight) % envHeight;
+        }
+        
+        agent.set('x', nx);
+        agent.set('y', ny);
+      };
+    }
+
+    case 'move-forward': {
+      const speed = params.speed ?? 2;
+      return (agent: Agent) => {
+        let vx = agent.get('vx') as number ?? 0;
+        let vy = agent.get('vy') as number ?? 0;
+        
+        // Normalize and apply speed
+        const mag = Math.sqrt(vx * vx + vy * vy);
+        if (mag > 0) {
+          vx = (vx / mag) * speed;
+          vy = (vy / mag) * speed;
+          agent.set('vx', vx);
+          agent.set('vy', vy);
+        }
+        
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        let nx = x + vx;
+        let ny = y + vy;
+        
+        if (wraparound) {
+          nx = ((nx % envWidth) + envWidth) % envWidth;
+          ny = ((ny % envHeight) + envHeight) % envHeight;
+        }
+        
+        agent.set('x', nx);
+        agent.set('y', ny);
+      };
+    }
+
+    case 'move-toward': {
+      const speed = params.speed ?? 2;
+      const targetTypeId = params.target;
+      if (!targetTypeId) return null;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        const target = findNearest(agent, targetTypeId, envWidth, envHeight, wraparound);
+        
+        if (target) {
+          const tx = target.get('x') as number;
+          const ty = target.get('y') as number;
+          const [dx, dy] = getDirection(x, y, tx, ty, envWidth, envHeight, wraparound);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist > 0) {
+            agent.set('x', x + (dx / dist) * speed);
+            agent.set('y', y + (dy / dist) * speed);
+          }
+        }
+      };
+    }
+
+    case 'move-away': {
+      const speed = params.speed ?? 2;
+      const targetTypeId = params.target;
+      if (!targetTypeId) return null;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        const target = findNearest(agent, targetTypeId, envWidth, envHeight, wraparound);
+        
+        if (target) {
+          const tx = target.get('x') as number;
+          const ty = target.get('y') as number;
+          const [dx, dy] = getDirection(x, y, tx, ty, envWidth, envHeight, wraparound);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist > 0) {
+            agent.set('x', x - (dx / dist) * speed);
+            agent.set('y', y - (dy / dist) * speed);
+          }
+        }
+      };
+    }
+
+    case 'separate': {
+      const radius = params.radius ?? 25;
+      const strength = params.strength ?? 1;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        const typeId = agent.get('typeId') as string;
+        
+        let steerX = 0;
+        let steerY = 0;
+        let count = 0;
+        
+        for (const other of env.getAgents()) {
+          if (other === agent) continue;
+          if (other.get('typeId') !== typeId) continue;
+          
+          const ox = other.get('x') as number;
+          const oy = other.get('y') as number;
+          const [dx, dy] = getDirection(x, y, ox, oy, envWidth, envHeight, wraparound);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist > 0 && dist < radius) {
+            // Weight by inverse distance (closer = stronger repulsion)
+            steerX -= (dx / dist) / dist;
+            steerY -= (dy / dist) / dist;
+            count++;
+          }
+        }
+        
+        if (count > 0) {
+          const vx = (agent.get('vx') as number) ?? 0;
+          const vy = (agent.get('vy') as number) ?? 0;
+          agent.set('vx', vx + steerX * strength);
+          agent.set('vy', vy + steerY * strength);
+        }
+      };
+    }
+
+    case 'align': {
+      const radius = params.radius ?? 50;
+      const strength = params.strength ?? 1;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        const typeId = agent.get('typeId') as string;
+        
+        let avgVx = 0;
+        let avgVy = 0;
+        let count = 0;
+        
+        for (const other of env.getAgents()) {
+          if (other === agent) continue;
+          if (other.get('typeId') !== typeId) continue;
+          
+          const ox = other.get('x') as number;
+          const oy = other.get('y') as number;
+          const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
+          
+          if (dist < radius) {
+            avgVx += (other.get('vx') as number) ?? 0;
+            avgVy += (other.get('vy') as number) ?? 0;
+            count++;
+          }
+        }
+        
+        if (count > 0) {
+          avgVx /= count;
+          avgVy /= count;
+          
+          const vx = (agent.get('vx') as number) ?? 0;
+          const vy = (agent.get('vy') as number) ?? 0;
+          
+          // Steer toward average velocity
+          agent.set('vx', vx + (avgVx - vx) * strength * 0.1);
+          agent.set('vy', vy + (avgVy - vy) * strength * 0.1);
+        }
+      };
+    }
+
+    case 'cohere': {
+      const radius = params.radius ?? 75;
+      const strength = params.strength ?? 1;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        const typeId = agent.get('typeId') as string;
+        
+        let centerX = 0;
+        let centerY = 0;
+        let count = 0;
+        
+        for (const other of env.getAgents()) {
+          if (other === agent) continue;
+          if (other.get('typeId') !== typeId) continue;
+          
+          const ox = other.get('x') as number;
+          const oy = other.get('y') as number;
+          const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
+          
+          if (dist < radius) {
+            // Accumulate positions (accounting for wraparound)
+            const [dx, dy] = getDirection(x, y, ox, oy, envWidth, envHeight, wraparound);
+            centerX += dx;
+            centerY += dy;
+            count++;
+          }
+        }
+        
+        if (count > 0) {
+          centerX /= count;
+          centerY /= count;
+          
+          const vx = (agent.get('vx') as number) ?? 0;
+          const vy = (agent.get('vy') as number) ?? 0;
+          
+          // Steer toward center of mass
+          agent.set('vx', vx + centerX * strength * 0.01);
+          agent.set('vy', vy + centerY * strength * 0.01);
+        }
+      };
+    }
+
+    case 'wiggle': {
+      const maxAngle = (params.angle ?? 30) * Math.PI / 180;
+      
+      return (agent: Agent) => {
+        const vx = (agent.get('vx') as number) ?? 0;
+        const vy = (agent.get('vy') as number) ?? 0;
+        const mag = Math.sqrt(vx * vx + vy * vy);
+        
+        if (mag > 0) {
+          const angle = Math.atan2(vy, vx);
+          const wiggle = utils.random(-maxAngle, maxAngle, true);
+          const newAngle = angle + wiggle;
+          agent.set('vx', Math.cos(newAngle) * mag);
+          agent.set('vy', Math.sin(newAngle) * mag);
+        }
+      };
+    }
+
+    case 'bounce': {
+      return (agent: Agent) => {
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        let vx = (agent.get('vx') as number) ?? 0;
+        let vy = (agent.get('vy') as number) ?? 0;
+        
+        if (x < 0 || x >= envWidth) {
+          vx = -vx;
+          agent.set('vx', vx);
+          agent.set('x', Math.max(0, Math.min(envWidth - 1, x)));
+        }
+        if (y < 0 || y >= envHeight) {
+          vy = -vy;
+          agent.set('vy', vy);
+          agent.set('y', Math.max(0, Math.min(envHeight - 1, y)));
+        }
+      };
+    }
+
+    case 'die': {
+      const probability = params.probability ?? 0.01;
+      
+      return (agent: Agent) => {
+        if (utils.random(0, 1, true) < probability) {
+          agent.environment?.removeAgent(agent);
+        }
+      };
+    }
+
+    case 'reproduce': {
+      const probability = params.probability ?? 0.01;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        if (utils.random(0, 1, true) < probability) {
+          const child = new Agent();
+          const x = agent.get('x') as number;
+          const y = agent.get('y') as number;
+          
+          child.set('typeId', agent.get('typeId'));
+          child.set('x', x + utils.random(-5, 5, true));
+          child.set('y', y + utils.random(-5, 5, true));
+          
+          // Copy velocity if present
+          const vx = agent.get('vx');
+          const vy = agent.get('vy');
+          if (vx !== null) child.set('vx', vx);
+          if (vy !== null) child.set('vy', vy);
+          
+          // Copy tick function
+          const tickFn = agent.get('tick');
+          if (tickFn) child.set('tick', tickFn);
+          
+          env.addAgent(child);
+        }
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Find the nearest agent of a given type
+ */
+function findNearest(
+  agent: Agent, 
+  typeId: string,
+  envWidth: number,
+  envHeight: number,
+  wraparound: boolean
+): Agent | null {
   const env = agent.environment;
-  const x = agent.get('x');
-  const y = agent.get('y');
-  let nearest = null;
+  if (!env) return null;
+  
+  const x = agent.get('x') as number;
+  const y = agent.get('y') as number;
+  
+  let nearest: Agent | null = null;
   let nearestDist = Infinity;
+  
   for (const other of env.getAgents()) {
     if (other === agent) continue;
     if (other.get('typeId') !== typeId) continue;
-    const ox = other.get('x');
-    const oy = other.get('y');
-    const dist = Math.sqrt((ox - x) ** 2 + (oy - y) ** 2);
+    
+    const ox = other.get('x') as number;
+    const oy = other.get('y') as number;
+    const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
+    
     if (dist < nearestDist) {
       nearestDist = dist;
       nearest = other;
     }
   }
+  
   return nearest;
-}`);
-  lines.push('');
-
-  // Compile tick function for each agent type
-  lines.push('// Agent tick functions');
-  for (const agentType of model.agentTypes) {
-    lines.push(compileAgentTickFunction(agentType, model));
-    lines.push('');
-  }
-
-  // Setup function
-  lines.push('// Setup function');
-  lines.push('function setup(env) {');
-  
-  for (const pop of model.populations) {
-    const agentType = model.agentTypes.find((t) => t.id === pop.agentTypeId);
-    if (!agentType) continue;
-    const tickFn = `tick_${sanitizeId(agentType.id)}`;
-
-    lines.push(`  // ${agentType.name}: ${pop.count} agents`);
-    lines.push(`  for (let i = 0; i < ${pop.count}; i++) {`);
-    lines.push(`    const agent = new Agent();`);
-    lines.push(`    agent.set('typeId', '${agentType.id}');`);
-    lines.push(`    agent.set('x', utils.random(0, ENV_WIDTH - 1, true));`);
-    lines.push(`    agent.set('y', utils.random(0, ENV_HEIGHT - 1, true));`);
-    lines.push(`    agent.set('tick', ${tickFn});`);
-    lines.push(`    env.addAgent(agent);`);
-    lines.push(`  }`);
-  }
-  
-  lines.push('}');
-  lines.push('');
-
-  // Exports
-  lines.push('// Exports');
-  lines.push('self.modelSetup = setup;');
-  lines.push('self.AGENT_TYPES = AGENT_TYPES;');
-  lines.push('self.ENV_WIDTH = ENV_WIDTH;');
-  lines.push('self.ENV_HEIGHT = ENV_HEIGHT;');
-
-  return lines.join('\n');
 }
 
 /**
- * Compile tick function for an agent type
- * Uses Rule DSL where practical, helper functions for complex operations
+ * Get distance between two points (accounting for wraparound)
  */
-function compileAgentTickFunction(agentType: AgentType, model: StudioModel): string {
-  const fnName = `tick_${sanitizeId(agentType.id)}`;
-  const enabledBehaviors = agentType.behaviors.filter((b) => b.enabled);
-  const hasBounce = enabledBehaviors.some(b => b.type === 'bounce');
-  
-  // Build Rule DSL steps for simple behaviors
-  const ruleSteps: any[] = [];
-  
-  // JS code for complex behaviors
-  const jsCode: string[] = [];
-  
-  for (const behavior of enabledBehaviors) {
-    if (behavior.type === 'bounce') continue;
-    
-    const result = compileBehavior(behavior, model, agentType.id);
-    if (result.rule) {
-      ruleSteps.push(...result.rule);
-    }
-    if (result.js) {
-      jsCode.push(result.js);
-    }
-  }
-  
-  // Add boundary handling
-  if (hasBounce) {
-    jsCode.push(compileBounceJS());
-  } else if (model.environment.wraparound) {
-    ruleSteps.push(...compileWraparoundRuleSteps(model));
-  }
-  
-  // Generate the function
-  const lines: string[] = [];
-  
-  if (ruleSteps.length > 0 && jsCode.length === 0) {
-    // Pure Rule DSL
-    lines.push(`const ${fnName} = new Rule(null, ${JSON.stringify(ruleSteps, null, 2)});`);
-  } else if (ruleSteps.length === 0 && jsCode.length > 0) {
-    // Pure JS
-    lines.push(`function ${fnName}(agent) {`);
-    lines.push(`  const env = agent.environment;`);
-    lines.push(`  const x = agent.get('x');`);
-    lines.push(`  const y = agent.get('y');`);
-    for (const code of jsCode) {
-      lines.push(code);
-    }
-    lines.push(`}`);
-  } else {
-    // Hybrid: wrap Rule in a function that also runs JS
-    lines.push(`const ${fnName}_rule = new Rule(null, ${JSON.stringify(ruleSteps, null, 2)});`);
-    lines.push(`function ${fnName}(agent) {`);
-    lines.push(`  const env = agent.environment;`);
-    lines.push(`  ${fnName}_rule.environment = env;`);
-    lines.push(`  const x = agent.get('x');`);
-    lines.push(`  const y = agent.get('y');`);
-    for (const code of jsCode) {
-      lines.push(code);
-    }
-    lines.push(`  ${fnName}_rule.call(agent);`);
-    lines.push(`}`);
-  }
-  
-  return lines.join('\n');
-}
-
-interface BehaviorCompilation {
-  rule?: any[];
-  js?: string;
+function getDistance(
+  x1: number, y1: number, 
+  x2: number, y2: number,
+  width: number, height: number,
+  wraparound: boolean
+): number {
+  const [dx, dy] = getDirection(x1, y1, x2, y2, width, height, wraparound);
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 /**
- * Compile a behavior - returns Rule steps and/or JS code
+ * Get direction vector from point 1 to point 2 (accounting for wraparound)
  */
-function compileBehavior(behavior: Behavior, model: StudioModel, agentTypeId: string): BehaviorCompilation {
-  const { type, params } = behavior;
+function getDirection(
+  x1: number, y1: number,
+  x2: number, y2: number,
+  width: number, height: number,
+  wraparound: boolean
+): [number, number] {
+  let dx = x2 - x1;
+  let dy = y2 - y1;
   
-  switch (type) {
-    case 'random-walk': {
-      const speed = params.speed ?? 2;
-      // Pure Rule DSL with random operator
-      return {
-        rule: [
-          ["local", "_angle", ["multiply", ["random"], 6.283185307179586]],
-          ["set", "x", ["add", ["get", "x"], 
-            ["multiply", ["method", "Math", "cos", ["local", "_angle"]], speed]]],
-          ["set", "y", ["add", ["get", "y"], 
-            ["multiply", ["method", "Math", "sin", ["local", "_angle"]], speed]]]
-        ]
-      };
+  if (wraparound) {
+    // Use shortest path in torus
+    if (Math.abs(dx) > width / 2) {
+      dx = dx > 0 ? dx - width : dx + width;
     }
-    
-    case 'move-toward': {
-      const speed = params.speed ?? 2;
-      const targetTypeId = params.target;
-      if (!targetTypeId) return {};
-      
-      // Use JS helper for finding nearest
-      return {
-        js: `  // Move toward ${targetTypeId}
-  {
-    const target = findNearest(agent, '${targetTypeId}');
-    if (target) {
-      const tx = target.get('x');
-      const ty = target.get('y');
-      const dx = tx - x;
-      const dy = ty - y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 0) {
-        agent.set('x', x + (dx / dist) * ${speed});
-        agent.set('y', y + (dy / dist) * ${speed});
-      }
+    if (Math.abs(dy) > height / 2) {
+      dy = dy > 0 ? dy - height : dy + height;
     }
-  }`
-      };
-    }
-    
-    case 'move-away': {
-      const speed = params.speed ?? 2;
-      const targetTypeId = params.target;
-      if (!targetTypeId) return {};
-      
-      return {
-        js: `  // Move away from ${targetTypeId}
-  {
-    const target = findNearest(agent, '${targetTypeId}');
-    if (target) {
-      const tx = target.get('x');
-      const ty = target.get('y');
-      const dx = tx - x;
-      const dy = ty - y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 0) {
-        agent.set('x', x - (dx / dist) * ${speed});
-        agent.set('y', y - (dy / dist) * ${speed});
-      }
-    }
-  }`
-      };
-    }
-    
-    case 'wiggle': {
-      const maxAngle = params.angle ?? 30;
-      const maxRad = maxAngle * Math.PI / 180;
-      // Rule DSL: add random angle variance
-      return {
-        rule: [
-          ["local", "_wiggle", ["subtract", ["multiply", ["random"], maxRad * 2], maxRad]],
-          ["local", "_heading", ["add", ["get", "heading"], ["multiply", ["local", "_wiggle"], 57.29577951]]],
-          ["set", "heading", ["local", "_heading"]]
-        ]
-      };
-    }
-    
-    case 'die': {
-      const probability = params.probability ?? 0.01;
-      // Rule DSL with random
-      return {
-        rule: [
-          ["if", ["lt", ["random"], probability],
-            ["method", ["environment"], "removeAgent", ["agent"]]]
-        ]
-      };
-    }
-    
-    case 'reproduce': {
-      const probability = params.probability ?? 0.01;
-      const tickFn = `tick_${sanitizeId(agentTypeId)}`;
-      // Needs JS to create new agent
-      return {
-        js: `  // Reproduce
-  if (utils.random(0, 1, true) < ${probability}) {
-    const child = new Agent();
-    child.set('typeId', '${agentTypeId}');
-    child.set('x', x + utils.random(-5, 5, true));
-    child.set('y', y + utils.random(-5, 5, true));
-    child.set('tick', ${tickFn});
-    env.addAgent(child);
-  }`
-      };
-    }
-    
-    default:
-      return {};
   }
-}
-
-/**
- * Wraparound as Rule DSL steps
- */
-function compileWraparoundRuleSteps(model: StudioModel): any[] {
-  const w = model.environment.width;
-  const h = model.environment.height;
   
-  return [
-    ["if", ["lt", ["get", "x"], 0],
-      ["set", "x", ["add", ["get", "x"], w]]],
-    ["if", ["gte", ["get", "x"], w],
-      ["set", "x", ["subtract", ["get", "x"], w]]],
-    ["if", ["lt", ["get", "y"], 0],
-      ["set", "y", ["add", ["get", "y"], h]]],
-    ["if", ["gte", ["get", "y"], h],
-      ["set", "y", ["subtract", ["get", "y"], h]]]
-  ];
-}
-
-/**
- * Bounce as JS (complex conditional logic)
- */
-function compileBounceJS(): string {
-  return `  // Bounce off edges
-  {
-    let nx = agent.get('x');
-    let ny = agent.get('y');
-    if (nx < 0 || nx >= ENV_WIDTH) {
-      nx = Math.max(0, Math.min(ENV_WIDTH - 1, nx));
-      agent.set('x', nx);
-    }
-    if (ny < 0 || ny >= ENV_HEIGHT) {
-      ny = Math.max(0, Math.min(ENV_HEIGHT - 1, ny));
-      agent.set('y', ny);
-    }
-  }`;
-}
-
-/**
- * Sanitize an ID to be a valid JavaScript identifier
- */
-function sanitizeId(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_]/g, '_');
+  return [dx, dy];
 }
