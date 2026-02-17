@@ -544,8 +544,8 @@ function compileBehavior(
             }
           }
           
-          // Copy tick function
-          const tickFn = agent.get('tick');
+          // Copy tick function (access via .data since 'tick' is a disallowed get() key in Flocc)
+          const tickFn = (agent as any).data?.tick;
           if (tickFn) child.set('tick', tickFn);
           
           env.addAgent(child);
