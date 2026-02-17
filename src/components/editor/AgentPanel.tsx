@@ -91,91 +91,131 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
             return (
               <div
                 key={agent.id}
-                onClick={() => onSelectAgent(isSelected ? null : agent.id)}
-                className={`p-3 rounded-lg cursor-pointer transition group ${
-                  isSelected
-                    ? 'bg-blue-600/20 border border-blue-500'
-                    : 'bg-gray-800 hover:bg-gray-750 border border-transparent'
-                }`}
+                className="flex items-center"
               >
-                <div className="flex items-center gap-3">
-                  {/* Color/shape indicator */}
-                  <div
-                    className="w-6 h-6 shrink-0 flex items-center justify-center"
-                    style={{ color: agent.color }}
-                  >
-                    {agent.shape === 'circle' && (
-                      <div
-                        className="w-5 h-5 rounded-full"
-                        style={{ backgroundColor: agent.color }}
-                      />
-                    )}
-                    {agent.shape === 'square' && (
-                      <div
-                        className="w-5 h-5"
-                        style={{ backgroundColor: agent.color }}
-                      />
-                    )}
-                    {agent.shape === 'triangle' && (
-                      <div
-                        className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[16px]"
-                        style={{ borderBottomColor: agent.color }}
-                      />
-                    )}
-                  </div>
+                <div
+                  onClick={() => onSelectAgent(isSelected ? null : agent.id)}
+                  className={`flex-1 p-3 rounded-lg cursor-pointer transition group ${
+                    isSelected
+                      ? 'bg-blue-600/20 border border-blue-500'
+                      : 'bg-gray-800 hover:bg-gray-750 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Color/shape indicator */}
+                    <ShapeIndicator shape={agent.shape} color={agent.color} />
 
-                  <div className="flex-1 min-w-0">
-                    {/* Inline editable name */}
-                    <InlineEditableName
-                      value={agent.name}
-                      isEditing={isEditing}
-                      onStartEdit={() => setEditingId(agent.id)}
-                      onEndEdit={() => setEditingId(null)}
-                      onChange={(name) => updateAgentType(agent.id, { name })}
-                    />
-                    <div className="text-xs text-gray-500">
-                      {pop?.count ?? 0} agents · {agent.behaviors.length} behavior
-                      {agent.behaviors.length !== 1 ? 's' : ''}
+                    <div className="flex-1 min-w-0">
+                      {/* Inline editable name */}
+                      <InlineEditableName
+                        value={agent.name}
+                        isEditing={isEditing}
+                        onStartEdit={() => setEditingId(agent.id)}
+                        onEndEdit={() => setEditingId(null)}
+                        onChange={(name) => updateAgentType(agent.id, { name })}
+                      />
+                      <div className="text-xs text-gray-500">
+                        {pop?.count ?? 0} agents · {agent.behaviors.length} behavior
+                        {agent.behaviors.length !== 1 ? 's' : ''}
+                      </div>
                     </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (pop) removePopulation(pop.id);
+                        removeAgentType(agent.id);
+                        if (isSelected) onSelectAgent(null);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition"
+                    >
+                      ×
+                    </button>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (pop) removePopulation(pop.id);
-                      removeAgentType(agent.id);
-                      if (isSelected) onSelectAgent(null);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition"
-                  >
-                    ×
-                  </button>
+                  {/* Quick population edit */}
+                  {isSelected && pop && (
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <label className="flex items-center gap-2 text-sm">
+                        <span className="text-gray-400">Count:</span>
+                        <input
+                          type="number"
+                          value={pop.count}
+                          onChange={(e) =>
+                            updatePopulation(pop.id, { count: parseInt(e.target.value) || 0 })
+                          }
+                          min={0}
+                          max={1000}
+                          className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
 
-                {/* Quick population edit */}
-                {isSelected && pop && (
-                  <div className="mt-3 pt-3 border-t border-gray-700">
-                    <label className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-400">Count:</span>
-                      <input
-                        type="number"
-                        value={pop.count}
-                        onChange={(e) =>
-                          updatePopulation(pop.id, { count: parseInt(e.target.value) || 0 })
-                        }
-                        min={0}
-                        max={1000}
-                        className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </label>
-                  </div>
-                )}
+                {/* Selection arrow indicator */}
+                <div 
+                  className={`w-4 flex items-center justify-center transition-opacity ${
+                    isSelected ? 'opacity-100' : 'opacity-0'
+                  }`}
+                >
+                  <svg 
+                    className="w-3 h-3 text-blue-500" 
+                    fill="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M8 4l8 8-8 8z" />
+                  </svg>
+                </div>
               </div>
             );
           })
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ShapeIndicator
+// ============================================================================
+
+interface ShapeIndicatorProps {
+  shape: string;
+  color: string;
+}
+
+function ShapeIndicator({ shape, color }: ShapeIndicatorProps) {
+  return (
+    <div className="w-6 h-6 shrink-0 flex items-center justify-center">
+      {shape === 'circle' && (
+        <div
+          className="w-5 h-5 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+      )}
+      {shape === 'square' && (
+        <div
+          className="w-5 h-5"
+          style={{ backgroundColor: color }}
+        />
+      )}
+      {shape === 'triangle' && (
+        <div
+          className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[16px]"
+          style={{ borderBottomColor: color }}
+        />
+      )}
+      {shape === 'arrow' && (
+        <svg 
+          className="w-5 h-5" 
+          viewBox="0 0 20 20" 
+          fill={color}
+        >
+          <path d="M10 2 L18 18 L10 14 L2 18 Z" />
+        </svg>
+      )}
     </div>
   );
 }

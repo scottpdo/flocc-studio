@@ -4,10 +4,10 @@
  * Canvas
  * 
  * Container for the Flocc CanvasRenderer.
- * Maintains square aspect ratio and centers within available space.
+ * Maintains square aspect ratio via CSS max-width/max-height.
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import { useModelStore } from '@/stores/model';
 import { useSimulationStore } from '@/stores/simulation';
 
@@ -17,40 +17,10 @@ interface CanvasProps {
 
 export function Canvas({ onContainerReady }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const [canvasSize, setCanvasSize] = useState(500);
   
   const model = useModelStore((s) => s.model);
   const status = useSimulationStore((s) => s.status);
   const agentCount = useSimulationStore((s) => s.agentCount);
-
-  // Calculate square size based on container dimensions
-  const updateCanvasSize = useCallback(() => {
-    if (!wrapperRef.current) return;
-    
-    const rect = wrapperRef.current.getBoundingClientRect();
-    // Use the smaller dimension to ensure square fits, with some padding
-    const padding = 32; // 16px on each side
-    const maxSize = Math.min(rect.width - padding, rect.height - padding);
-    const size = Math.max(200, Math.floor(maxSize)); // Minimum 200px
-    
-    setCanvasSize(size);
-  }, []);
-
-  // Update size on mount and resize
-  useEffect(() => {
-    updateCanvasSize();
-    
-    const resizeObserver = new ResizeObserver(() => {
-      updateCanvasSize();
-    });
-    
-    if (wrapperRef.current) {
-      resizeObserver.observe(wrapperRef.current);
-    }
-    
-    return () => resizeObserver.disconnect();
-  }, [updateCanvasSize]);
 
   // Notify parent when container is ready
   useEffect(() => {
@@ -63,21 +33,20 @@ export function Canvas({ onContainerReady }: CanvasProps) {
   const showPlaceholder = !model || (status === 'idle' && agentCount === 0);
 
   return (
-    <div 
-      ref={wrapperRef}
-      className="w-full h-full flex items-center justify-center"
-    >
+    <div className="w-full h-full flex items-center justify-center">
+      {/* Square container that scales to fit */}
       <div 
-        className="bg-gray-900 rounded-lg overflow-hidden relative flex items-center justify-center"
+        className="bg-gray-900 rounded-lg overflow-hidden relative flex items-center justify-center aspect-square"
         style={{
-          width: canvasSize,
-          height: canvasSize,
+          maxWidth: '100%',
+          maxHeight: '100%',
+          width: 'min(100%, 100vh - 8rem)', // Account for header and controls
         }}
       >
-        {/* Container for CanvasRenderer */}
+        {/* Container for CanvasRenderer - canvas will be scaled via CSS */}
         <div 
           ref={containerRef} 
-          className="flex items-center justify-center"
+          className="flex items-center justify-center [&>canvas]:max-w-full [&>canvas]:max-h-full [&>canvas]:w-auto [&>canvas]:h-auto"
         />
         
         {/* Placeholder overlay */}

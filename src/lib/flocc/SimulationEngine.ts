@@ -119,15 +119,12 @@ export class SimulationEngine {
       agent.set('size', metadata.size);
       
       // Map studio shapes to Flocc renderer shapes
-      // Use 'arrow' for triangle when agent has velocity (for flocking)
-      const hasVelocity = agent.get('vx') !== null || agent.get('vy') !== null;
-      if (metadata.shape === 'triangle' && hasVelocity) {
-        agent.set('shape', 'arrow');
-      } else if (metadata.shape === 'square') {
+      if (metadata.shape === 'square') {
         agent.set('shape', 'rect');
         agent.set('width', metadata.size);
         agent.set('height', metadata.size);
       } else {
+        // circle, triangle, and arrow pass through directly
         agent.set('shape', metadata.shape);
       }
     }
