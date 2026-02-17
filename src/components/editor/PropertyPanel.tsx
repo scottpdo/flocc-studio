@@ -9,6 +9,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useModelStore } from '@/stores/model';
 import { BehaviorBuilder } from './BehaviorBuilder';
+import { PropertyBuilder } from './PropertyBuilder';
 import type { AgentType } from '@/types';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#ffffff'];
@@ -133,6 +134,12 @@ export function PropertyPanel({ selectedAgentId }: PropertyPanelProps) {
           className="w-full accent-blue-500"
         />
       </div>
+
+      {/* Divider */}
+      <div className="border-t border-gray-700 my-4" />
+
+      {/* Custom Properties */}
+      <PropertyBuilder agentType={agentType} />
 
       {/* Divider */}
       <div className="border-t border-gray-700 my-4" />

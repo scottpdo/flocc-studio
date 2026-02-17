@@ -8,7 +8,14 @@
 
 import { nanoid } from 'nanoid';
 import { useModelStore } from '@/stores/model';
-import { BEHAVIOR_LIBRARY, getBehaviorDef, createBehavior } from '@/lib/flocc/behaviors';
+import { 
+  BEHAVIOR_LIBRARY, 
+  getBehaviorDef, 
+  createBehavior,
+  ACTION_OPTIONS,
+  CONDITION_OPTIONS,
+  type ParamDef,
+} from '@/lib/flocc/behaviors';
 import type { AgentType, Behavior, BehaviorType } from '@/types';
 
 interface BehaviorBuilderProps {
@@ -76,6 +83,13 @@ export function BehaviorBuilder({ agentType }: BehaviorBuilderProps) {
               </option>
             ))}
           </optgroup>
+          <optgroup label="Events">
+            {BEHAVIOR_LIBRARY.filter(d => d.category === 'events').map((def) => (
+              <option key={def.type} value={def.type}>
+                {def.name}
+              </option>
+            ))}
+          </optgroup>
           <optgroup label="Lifecycle">
             {BEHAVIOR_LIBRARY.filter(d => d.category === 'lifecycle').map((def) => (
               <option key={def.type} value={def.type}>
@@ -111,6 +125,12 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
     });
   };
 
+  // Check if a param should be shown based on showWhen condition
+  const shouldShowParam = (param: ParamDef): boolean => {
+    if (!param.showWhen) return true;
+    return behavior.params[param.showWhen.param] === param.showWhen.value;
+  };
+
   return (
     <div className="bg-gray-800 rounded-lg p-3 group">
       <div className="flex items-center justify-between mb-2">
@@ -133,9 +153,10 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
 
       {/* Parameters */}
       <div className="space-y-2 pl-6">
-        {def.params.map((param) => (
+        {def.params.filter(shouldShowParam).map((param) => (
           <div key={param.key} className="flex items-center gap-2">
-            <label className="text-xs text-gray-400 w-16">{param.name}</label>
+            <label className="text-xs text-gray-400 w-20 shrink-0">{param.name}</label>
+            
             {param.type === 'number' && (
               <input
                 type="number"
@@ -147,6 +168,7 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
                 className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
               />
             )}
+            
             {param.type === 'agentType' && (
               <select
                 value={behavior.params[param.key] ?? ''}
@@ -161,6 +183,7 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
                 ))}
               </select>
             )}
+            
             {param.type === 'boolean' && (
               <input
                 type="checkbox"
@@ -168,6 +191,49 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
                 onChange={(e) => updateParam(param.key, e.target.checked)}
                 className="rounded bg-gray-700 border-gray-600"
               />
+            )}
+            
+            {param.type === 'action' && (
+              <select
+                value={behavior.params[param.key] ?? param.default}
+                onChange={(e) => updateParam(param.key, e.target.value)}
+                className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+              >
+                {ACTION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            
+            {param.type === 'condition' && (
+              <select
+                value={behavior.params[param.key] ?? param.default}
+                onChange={(e) => updateParam(param.key, e.target.value)}
+                className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+              >
+                {CONDITION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            
+            {param.type === 'property' && (
+              <select
+                value={behavior.params[param.key] ?? ''}
+                onChange={(e) => updateParam(param.key, e.target.value || null)}
+                className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Select property...</option>
+                {agentType.properties.map((prop) => (
+                  <option key={prop.id} value={prop.name}>
+                    {prop.name}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
         ))}

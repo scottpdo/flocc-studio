@@ -15,18 +15,20 @@ export interface BehaviorDef {
   type: BehaviorType;
   name: string;
   description: string;
-  category: 'movement' | 'flocking' | 'interaction' | 'lifecycle';
+  category: 'movement' | 'flocking' | 'events' | 'lifecycle';
   params: ParamDef[];
 }
 
 export interface ParamDef {
   key: string;
   name: string;
-  type: 'number' | 'agentType' | 'boolean';
+  type: 'number' | 'agentType' | 'boolean' | 'action' | 'condition' | 'property';
   default: any;
   min?: number;
   max?: number;
   step?: number;
+  // For conditional params that only show based on another param's value
+  showWhen?: { param: string; value: any };
 }
 
 /**
@@ -121,6 +123,42 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
     ],
   },
   
+  // Event behaviors
+  {
+    type: 'on-collision',
+    name: 'On Collision',
+    description: 'Trigger an action when colliding with another agent',
+    category: 'events',
+    params: [
+      { key: 'target', name: 'Collide With', type: 'agentType', default: null },
+      { key: 'radius', name: 'Radius', type: 'number', default: 10, min: 1, max: 50, step: 1 },
+      { key: 'action', name: 'Action', type: 'action', default: 'remove-target' },
+      // Params for set-property / increment-property actions
+      { key: 'property', name: 'Property', type: 'property', default: null, showWhen: { param: 'action', value: 'set-property' } },
+      { key: 'value', name: 'Value', type: 'number', default: 0, showWhen: { param: 'action', value: 'set-property' } },
+      { key: 'incrementProperty', name: 'Property', type: 'property', default: null, showWhen: { param: 'action', value: 'increment-property' } },
+      { key: 'incrementAmount', name: 'Amount', type: 'number', default: 1, step: 0.1, showWhen: { param: 'action', value: 'increment-property' } },
+    ],
+  },
+  {
+    type: 'on-property',
+    name: 'On Property',
+    description: 'Trigger an action when a property meets a condition',
+    category: 'events',
+    params: [
+      { key: 'property', name: 'Property', type: 'property', default: null },
+      { key: 'condition', name: 'Condition', type: 'condition', default: 'lte' },
+      { key: 'threshold', name: 'Threshold', type: 'number', default: 0 },
+      { key: 'action', name: 'Action', type: 'action', default: 'remove-self' },
+      // Params for set-property action
+      { key: 'setProperty', name: 'Property', type: 'property', default: null, showWhen: { param: 'action', value: 'set-property' } },
+      { key: 'setValue', name: 'Value', type: 'number', default: 0, showWhen: { param: 'action', value: 'set-property' } },
+      // Params for increment-property action
+      { key: 'incrementProperty', name: 'Property', type: 'property', default: null, showWhen: { param: 'action', value: 'increment-property' } },
+      { key: 'incrementAmount', name: 'Amount', type: 'number', default: 1, step: 0.1, showWhen: { param: 'action', value: 'increment-property' } },
+    ],
+  },
+  
   // Lifecycle behaviors
   {
     type: 'die',
@@ -140,6 +178,28 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
       { key: 'probability', name: 'Probability', type: 'number', default: 0.01, min: 0, max: 1, step: 0.01 },
     ],
   },
+];
+
+/**
+ * Action options for event behaviors
+ */
+export const ACTION_OPTIONS = [
+  { value: 'remove-self', label: 'Remove Self' },
+  { value: 'remove-target', label: 'Remove Target' },
+  { value: 'set-property', label: 'Set Property' },
+  { value: 'increment-property', label: 'Increment Property' },
+];
+
+/**
+ * Condition options for on-property behavior
+ */
+export const CONDITION_OPTIONS = [
+  { value: 'eq', label: '=' },
+  { value: 'neq', label: '≠' },
+  { value: 'lt', label: '<' },
+  { value: 'lte', label: '≤' },
+  { value: 'gt', label: '>' },
+  { value: 'gte', label: '≥' },
 ];
 
 /**
@@ -163,7 +223,10 @@ export function createBehavior(type: BehaviorType, id: string): {
   
   if (def) {
     for (const param of def.params) {
-      params[param.key] = param.default;
+      // Skip conditional params that have showWhen
+      if (!param.showWhen) {
+        params[param.key] = param.default;
+      }
     }
   }
   

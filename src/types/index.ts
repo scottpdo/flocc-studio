@@ -80,15 +80,17 @@ export type BehaviorType =
   | 'separate'
   | 'align'
   | 'cohere'
-  | 'follow-gradient'
-  | 'if-nearby'
   | 'on-collision'
-  | 'set-property'
-  | 'increment'
-  | 'change-type'
+  | 'on-property'
   | 'die'
-  | 'reproduce'
-  | 'custom-code';
+  | 'reproduce';
+
+// Action types for event-triggered behaviors
+export type BehaviorAction =
+  | 'remove-self'
+  | 'remove-target'
+  | 'set-property'
+  | 'increment-property';
 
 export interface Population {
   id: string;

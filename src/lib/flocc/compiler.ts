@@ -75,6 +75,11 @@ export function compileModel(model: StudioModel): CompiledModel {
         agent.set('x', utils.random(0, envConfig.width - 1, true));
         agent.set('y', utils.random(0, envConfig.height - 1, true));
         
+        // Initialize custom properties
+        for (const prop of agentType.properties) {
+          agent.set(prop.name, prop.defaultValue);
+        }
+        
         // Initialize velocity for movement behaviors
         const hasMoveForward = agentType.behaviors.some(b => b.type === 'move-forward' && b.enabled);
         const hasFlocking = agentType.behaviors.some(b => 
@@ -417,6 +422,76 @@ function compileBehavior(
       };
     }
 
+    case 'on-collision': {
+      const targetTypeId = params.target;
+      const radius = params.radius ?? 10;
+      const action = params.action ?? 'remove-target';
+      
+      if (!targetTypeId) return null;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        
+        // Find colliding agent
+        let collidingAgent: Agent | null = null;
+        for (const other of env.getAgents()) {
+          if (other === agent) continue;
+          if (other.get('typeId') !== targetTypeId) continue;
+          
+          const ox = other.get('x') as number;
+          const oy = other.get('y') as number;
+          const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
+          
+          if (dist < radius) {
+            collidingAgent = other;
+            break;
+          }
+        }
+        
+        if (!collidingAgent) return;
+        
+        // Execute action
+        executeAction(agent, collidingAgent, action, params, env);
+      };
+    }
+
+    case 'on-property': {
+      const propName = params.property;
+      const condition = params.condition ?? 'lte';
+      const threshold = params.threshold ?? 0;
+      const action = params.action ?? 'remove-self';
+      
+      if (!propName) return null;
+      
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        
+        const value = agent.get(propName) as number;
+        if (value === null || value === undefined) return;
+        
+        // Check condition
+        let conditionMet = false;
+        switch (condition) {
+          case 'eq': conditionMet = value === threshold; break;
+          case 'neq': conditionMet = value !== threshold; break;
+          case 'lt': conditionMet = value < threshold; break;
+          case 'lte': conditionMet = value <= threshold; break;
+          case 'gt': conditionMet = value > threshold; break;
+          case 'gte': conditionMet = value >= threshold; break;
+        }
+        
+        if (!conditionMet) return;
+        
+        // Execute action
+        executeAction(agent, null, action, params, env);
+      };
+    }
+
     case 'die': {
       const probability = params.probability ?? 0.01;
       
@@ -449,6 +524,14 @@ function compileBehavior(
           if (vx !== null) child.set('vx', vx);
           if (vy !== null) child.set('vy', vy);
           
+          // Copy custom properties
+          const agentType = model.agentTypes.find(t => t.id === agent.get('typeId'));
+          if (agentType) {
+            for (const prop of agentType.properties) {
+              child.set(prop.name, agent.get(prop.name));
+            }
+          }
+          
           // Copy tick function
           const tickFn = agent.get('tick');
           if (tickFn) child.set('tick', tickFn);
@@ -460,6 +543,52 @@ function compileBehavior(
 
     default:
       return null;
+  }
+}
+
+// ============================================================================
+// Action Execution
+// ============================================================================
+
+/**
+ * Execute an action from an event behavior
+ */
+function executeAction(
+  agent: Agent,
+  target: Agent | null,
+  action: string,
+  params: Record<string, any>,
+  env: Environment
+): void {
+  switch (action) {
+    case 'remove-self':
+      env.removeAgent(agent);
+      break;
+      
+    case 'remove-target':
+      if (target) {
+        env.removeAgent(target);
+      }
+      break;
+      
+    case 'set-property': {
+      const propName = params.property ?? params.setProperty;
+      const value = params.value ?? params.setValue ?? 0;
+      if (propName) {
+        agent.set(propName, value);
+      }
+      break;
+    }
+      
+    case 'increment-property': {
+      const propName = params.incrementProperty;
+      const amount = params.incrementAmount ?? 1;
+      if (propName) {
+        const current = (agent.get(propName) as number) ?? 0;
+        agent.set(propName, current + amount);
+      }
+      break;
+    }
   }
 }
 
