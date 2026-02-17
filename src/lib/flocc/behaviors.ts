@@ -161,6 +161,16 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
   
   // Lifecycle behaviors
   {
+    type: 'increment-property',
+    name: 'Increment Property',
+    description: 'Add or subtract from a property each tick',
+    category: 'lifecycle',
+    params: [
+      { key: 'property', name: 'Property', type: 'property', default: null },
+      { key: 'amount', name: 'Amount', type: 'number', default: -1, step: 0.1 },
+    ],
+  },
+  {
     type: 'die',
     name: 'Die',
     description: 'Remove agent with a probability each tick',

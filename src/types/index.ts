@@ -82,6 +82,7 @@ export type BehaviorType =
   | 'cohere'
   | 'on-collision'
   | 'on-property'
+  | 'increment-property'
   | 'die'
   | 'reproduce';
 

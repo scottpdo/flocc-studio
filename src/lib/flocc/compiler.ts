@@ -492,6 +492,18 @@ function compileBehavior(
       };
     }
 
+    case 'increment-property': {
+      const propName = params.property;
+      const amount = params.amount ?? -1;
+      
+      if (!propName) return null;
+      
+      return (agent: Agent) => {
+        const current = (agent.get(propName) as number) ?? 0;
+        agent.set(propName, current + amount);
+      };
+    }
+
     case 'die': {
       const probability = params.probability ?? 0.01;
       
