@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AuthButtons } from '@/components/auth/AuthButtons';
 
 export default function HomePage() {
   return (
@@ -22,6 +23,7 @@ export default function HomePage() {
             >
               Create Model
             </Link>
+            <AuthButtons />
           </nav>
         </div>
       </header>

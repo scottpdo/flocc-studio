@@ -9,8 +9,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { useModelStore, useCanUndo, useCanRedo, useModelUndo, useModelRedo } from '@/stores/model';
 import { useSimulation } from '@/lib/flocc/useSimulation';
+import { saveModel } from '@/lib/api/models';
 import { AgentPanel } from './AgentPanel';
 import { PropertyPanel } from './PropertyPanel';
 import { Canvas } from '@/components/simulation/Canvas';
@@ -21,9 +24,14 @@ interface EditorLayoutProps {
 }
 
 export function EditorLayout({ modelId }: EditorLayoutProps) {
+  const router = useRouter();
+  const { data: session } = useSession();
+  
   const model = useModelStore((s) => s.model);
   const isDirty = useModelStore((s) => s.isDirty);
+  const markClean = useModelStore((s) => s.markClean);
   const updateName = useModelStore((s) => s.updateName);
+  const setModel = useModelStore((s) => s.setModel);
 
   const canUndo = useCanUndo();
   const canRedo = useCanRedo();
@@ -32,6 +40,11 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
 
   // Selection state - controls whether properties panel is shown
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Track if this is a new model (not yet saved to DB)
+  const isNewModel = modelId === 'new';
 
   // Simulation hook
   const { setContainer, initializeSimulation } = useSimulation();
@@ -74,6 +87,33 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
     setSelectedAgentId(null);
   }, []);
 
+  // Save handler
+  const handleSave = useCallback(async () => {
+    if (!model || !session?.user) {
+      setSaveError('Please sign in to save');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    const result = await saveModel(model, isNewModel);
+
+    setIsSaving(false);
+
+    if (result.success && result.model) {
+      setModel(result.model);
+      markClean();
+      
+      // If it was a new model, redirect to the saved model's edit page
+      if (isNewModel) {
+        router.replace(`/model/${result.model.id}/edit`);
+      }
+    } else {
+      setSaveError(result.error ?? 'Failed to save');
+    }
+  }, [model, session, isNewModel, setModel, markClean, router]);
+
   if (!model) return null;
 
   const propertiesPanelOpen = selectedAgentId !== null;
@@ -99,6 +139,11 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
 
         <div className="flex-1" />
 
+        {/* Save error message */}
+        {saveError && (
+          <span className="text-red-400 text-sm">{saveError}</span>
+        )}
+
         {/* Undo/Redo */}
         <div className="flex items-center gap-1">
           <button
@@ -122,15 +167,22 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
         <div className="h-6 w-px bg-gray-700" />
 
         {/* Actions */}
-        <button className="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-sm">
-          Save
-        </button>
-        <Link
-          href={`/model/${modelId}`}
-          className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-sm"
+        <button 
+          onClick={handleSave}
+          disabled={isSaving || !session?.user}
+          className="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          title={!session?.user ? 'Sign in to save' : undefined}
         >
-          View
-        </Link>
+          {isSaving ? 'Saving...' : 'Save'}
+        </button>
+        {!isNewModel && (
+          <Link
+            href={`/model/${modelId}`}
+            className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-sm"
+          >
+            View
+          </Link>
+        )}
       </header>
 
       {/* Main Content */}
