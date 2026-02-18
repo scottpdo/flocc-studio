@@ -18,15 +18,30 @@ export function useSimulation() {
   const engineRef = useRef<SimulationEngine | null>(null);
   
   const model = useModelStore((s) => s.model);
+  const parameters = useModelStore((s) => s.model?.parameters);
   const setEngine = useSimulationStore((s) => s.setEngine);
   const updateState = useSimulationStore((s) => s.updateState);
   const setStatus = useSimulationStore((s) => s.setStatus);
   const speed = useSimulationStore((s) => s.speed);
+  
+  // Track model structure separately from parameters to avoid unnecessary re-inits
+  const modelStructureRef = useRef<string | null>(null);
 
   // Set container ref (called from Canvas component)
   const setContainer = useCallback((container: HTMLDivElement | null) => {
     containerRef.current = container;
   }, []);
+
+  // Compute a hash of model structure (excluding parameters) to detect structural changes
+  const getStructureHash = useCallback(() => {
+    if (!model) return null;
+    // Hash based on agent types, populations, and environment - NOT parameters
+    return JSON.stringify({
+      agentTypes: model.agentTypes,
+      populations: model.populations,
+      environment: model.environment,
+    });
+  }, [model]);
 
   // Initialize or re-initialize simulation
   const initializeSimulation = useCallback(() => {
@@ -69,19 +84,44 @@ export function useSimulation() {
 
       // Reset status
       setStatus('idle');
+      
+      // Track current structure
+      modelStructureRef.current = getStructureHash();
     } catch (error) {
       console.error('Failed to compile model:', error);
     }
-  }, [model, setEngine, updateState, setStatus, speed]);
+  }, [model, setEngine, updateState, setStatus, speed, getStructureHash]);
 
   // Sync parameter changes to the running engine (for runtime adjustment)
+  // This should NOT trigger re-initialization, only update the environment values
   useEffect(() => {
-    if (!engineRef.current || !model?.parameters) return;
+    if (!engineRef.current || !parameters) return;
     
-    // Sync all parameters to the engine
-    // This runs whenever parameters change in the store
-    engineRef.current.syncParameters(model.parameters);
-  }, [model?.parameters]);
+    // Only sync if engine is already initialized (structure hasn't changed)
+    const currentHash = getStructureHash();
+    if (modelStructureRef.current === currentHash) {
+      // Structure is the same, just sync parameters
+      engineRef.current.syncParameters(parameters);
+    }
+    // If structure changed, initializeSimulation will be called separately
+  }, [parameters, getStructureHash]);
+
+  // Detect structural changes and re-initialize (but not for parameter-only changes)
+  useEffect(() => {
+    if (!model || !containerRef.current) return;
+    
+    const currentHash = getStructureHash();
+    
+    // Skip if structure hasn't changed (e.g., only parameters changed)
+    if (modelStructureRef.current === currentHash) return;
+    
+    // Structure changed - need to re-initialize after a short delay
+    const timeout = setTimeout(() => {
+      initializeSimulation();
+    }, 100);
+    
+    return () => clearTimeout(timeout);
+  }, [model?.agentTypes, model?.populations, model?.environment, getStructureHash, initializeSimulation]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -63,18 +63,8 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
     }, 50);
   }, [setContainer, initializeSimulation]);
 
-  // Re-initialize simulation when model changes significantly
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      initializeSimulation();
-    }, 500);
-    return () => clearTimeout(timeout);
-  }, [
-    model?.agentTypes,
-    model?.populations,
-    model?.environment,
-    initializeSimulation,
-  ]);
+  // Note: Re-initialization on model structure changes is now handled
+  // inside useSimulation hook to properly separate structure vs parameter changes
 
   // Close properties panel on Escape key
   useEffect(() => {
