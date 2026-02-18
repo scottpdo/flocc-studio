@@ -219,6 +219,32 @@ export class SimulationEngine {
   }
 
   /**
+   * Capture a thumbnail of the current canvas state
+   * Returns a base64 data URL, resized to specified max dimension
+   */
+  captureThumbnail(maxSize: number = 400): string | null {
+    if (!this.renderer?.canvas) return null;
+
+    const canvas = this.renderer.canvas;
+    
+    // Create a temporary canvas for resizing
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Calculate scaled dimensions (maintain aspect ratio)
+    const scale = Math.min(maxSize / canvas.width, maxSize / canvas.height);
+    tempCanvas.width = Math.round(canvas.width * scale);
+    tempCanvas.height = Math.round(canvas.height * scale);
+
+    // Draw scaled image
+    ctx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+
+    // Return as JPEG data URL (smaller than PNG)
+    return tempCanvas.toDataURL('image/jpeg', 0.8);
+  }
+
+  /**
    * Clean up resources
    */
   cleanup(): void {

@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useModelStore, useCanUndo, useCanRedo, useModelUndo, useModelRedo } from '@/stores/model';
+import { useSimulationStore } from '@/stores/simulation';
 import { useSimulation } from '@/lib/flocc/useSimulation';
 import { saveModel } from '@/lib/api/models';
 import { AgentPanel } from './AgentPanel';
@@ -37,6 +38,8 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   const canRedo = useCanRedo();
   const undo = useModelUndo();
   const redo = useModelRedo();
+  
+  const captureThumbnail = useSimulationStore((s) => s.captureThumbnail);
 
   // Selection state - controls whether properties panel is shown
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -97,7 +100,13 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
     setIsSaving(true);
     setSaveError(null);
 
-    const result = await saveModel(model, isNewModel);
+    // Capture thumbnail before saving
+    const thumbnailUrl = captureThumbnail(400);
+    const modelWithThumbnail = thumbnailUrl 
+      ? { ...model, thumbnailUrl } 
+      : model;
+
+    const result = await saveModel(modelWithThumbnail, isNewModel);
 
     setIsSaving(false);
 
@@ -112,7 +121,7 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
     } else {
       setSaveError(result.error ?? 'Failed to save');
     }
-  }, [model, session, isNewModel, setModel, markClean, router]);
+  }, [model, session, isNewModel, setModel, markClean, router, captureThumbnail]);
 
   if (!model) return null;
 

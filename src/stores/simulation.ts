@@ -41,6 +41,9 @@ interface SimulationStore {
 
   // Status
   setStatus: (status: SimulationStatus) => void;
+
+  // Thumbnail capture
+  captureThumbnail: (maxSize?: number) => string | null;
 }
 
 // ============================================================================
@@ -115,4 +118,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
   // Status
   setStatus: (status) => set({ status }),
+
+  // Thumbnail capture
+  captureThumbnail: (maxSize = 400) => {
+    const { engine } = get();
+    return engine?.captureThumbnail(maxSize) ?? null;
+  },
 }));
