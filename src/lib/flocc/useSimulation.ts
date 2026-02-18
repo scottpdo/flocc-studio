@@ -56,11 +56,12 @@ export function useSimulation() {
         setEngine(engineRef.current);
       }
 
-      // Initialize with compiled model
+      // Initialize with compiled model and parameters
       engineRef.current.initialize(
         compiled.setup,
         compiled.agentTypes,
-        compiled.envConfig
+        compiled.envConfig,
+        model.parameters
       );
 
       // Apply current speed setting
@@ -72,6 +73,15 @@ export function useSimulation() {
       console.error('Failed to compile model:', error);
     }
   }, [model, setEngine, updateState, setStatus, speed]);
+
+  // Sync parameter changes to the running engine (for runtime adjustment)
+  useEffect(() => {
+    if (!engineRef.current || !model?.parameters) return;
+    
+    // Sync all parameters to the engine
+    // This runs whenever parameters change in the store
+    engineRef.current.syncParameters(model.parameters);
+  }, [model?.parameters]);
 
   // Cleanup on unmount
   useEffect(() => {

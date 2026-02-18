@@ -3,12 +3,14 @@
 /**
  * AgentPanel
  * 
- * Left sidebar for managing agent types and populations.
+ * Content for managing agent types and populations.
+ * Used inside an Accordion in the editor sidebar.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { nanoid } from 'nanoid';
 import { useModelStore } from '@/stores/model';
+import { Accordion } from '@/components/ui/Accordion';
 import type { AgentType, Population } from '@/types';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
@@ -65,19 +67,23 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
     return model.populations.find((p) => p.agentTypeId === agentTypeId);
   };
 
-  return (
-    <div className="p-4 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold">Agent Types</h2>
-        <button
-          onClick={handleAddAgentType}
-          className="text-sm px-2 py-1 rounded bg-blue-600 hover:bg-blue-500"
-        >
-          + Add
-        </button>
-      </div>
+  const addButton = (
+    <button
+      onClick={handleAddAgentType}
+      className="text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
+    >
+      + Add
+    </button>
+  );
 
-      <div className="flex-1 overflow-y-auto space-y-2">
+  return (
+    <Accordion 
+      title="Agent Types" 
+      defaultOpen={true}
+      badge={model.agentTypes.length}
+      action={addButton}
+    >
+      <div className="space-y-2">
         {model.agentTypes.length === 0 ? (
           <p className="text-gray-500 text-sm">
             No agent types yet. Click &quot;Add&quot; to create one.
@@ -173,7 +179,7 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
           })
         )}
       </div>
-    </div>
+    </Accordion>
   );
 }
 
