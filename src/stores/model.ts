@@ -58,6 +58,8 @@ interface ModelActions {
   updateName: (name: string) => void;
   updateDescription: (description: string) => void;
   updateEnvironment: (env: Partial<StudioModel['environment']>) => void;
+  /** Update isPublic without marking the model dirty (saved immediately via API) */
+  setIsPublic: (isPublic: boolean) => void;
 
   // Agent types
   addAgentType: (agentType: AgentType) => void;
@@ -139,6 +141,14 @@ export const useModelStore = create<ModelStore>()(
           if (state.model) {
             state.model.environment = { ...state.model.environment, ...env };
             state.isDirty = true;
+          }
+        }),
+
+      setIsPublic: (isPublic) =>
+        set((state) => {
+          if (state.model) {
+            state.model.isPublic = isPublic;
+            // intentionally NOT setting isDirty — this is persisted immediately
           }
         }),
 

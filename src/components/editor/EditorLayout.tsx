@@ -17,6 +17,7 @@ import { useSimulation } from '@/lib/flocc/useSimulation';
 import { saveModel } from '@/lib/api/models';
 import { AgentPanel } from './AgentPanel';
 import { PropertyPanel } from './PropertyPanel';
+import { ModelSettingsDropdown } from './ModelSettingsDropdown';
 import { Canvas } from '@/components/simulation/Canvas';
 import { Controls } from '@/components/simulation/Controls';
 
@@ -176,6 +177,8 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
         <div className="h-6 w-px bg-gray-700" />
 
         {/* Actions */}
+        <ModelSettingsDropdown modelId={modelId} disabled={isNewModel} />
+
         <button 
           onClick={handleSave}
           disabled={isSaving || !session?.user}
