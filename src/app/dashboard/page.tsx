@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { listModels, deleteModel } from '@/lib/api/models';
+import { ModelCard } from '@/components/models/ModelCard';
 import { AuthButtons } from '@/components/auth/AuthButtons';
 import type { StudioModel } from '@/types';
 
@@ -29,7 +30,8 @@ export default function DashboardPage() {
     if (session?.user?.id) {
       loadModels();
     }
-  }, [session, status, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, status]);
 
   async function loadModels() {
     setLoading(true);
@@ -46,14 +48,14 @@ export default function DashboardPage() {
     setDeletingId(null);
     
     if (success) {
-      setModels(models.filter(m => m.id !== id));
+      setModels((prev) => prev.filter((m) => m.id !== id));
     }
   }
 
   if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-white text-lg">Loading...</div>
+        <div className="text-white text-lg">Loading…</div>
       </div>
     );
   }
@@ -98,46 +100,13 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {models.map((model) => (
-              <div
+              <ModelCard
                 key={model.id}
-                className="bg-gray-900 rounded-lg p-4 border border-gray-800 hover:border-gray-700 transition"
-              >
-                <div className="aspect-video bg-gray-800 rounded mb-4 flex items-center justify-center text-gray-500">
-                  {model.thumbnailUrl ? (
-                    <img src={model.thumbnailUrl} alt={model.name} className="w-full h-full object-cover rounded" />
-                  ) : (
-                    <span className="text-sm">No preview</span>
-                  )}
-                </div>
-                
-                <h3 className="font-semibold mb-1">{model.name}</h3>
-                <p className="text-sm text-gray-400 mb-4">
-                  {model.agentTypes?.length ?? 0} agent types · 
-                  Updated {new Date(model.updatedAt).toLocaleDateString()}
-                </p>
-
-                <div className="flex gap-2">
-                  <Link
-                    href={`/model/${model.id}/edit`}
-                    className="flex-1 text-center px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition"
-                  >
-                    Edit
-                  </Link>
-                  <Link
-                    href={`/model/${model.id}`}
-                    className="flex-1 text-center px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm transition"
-                  >
-                    View
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(model.id, model.name)}
-                    disabled={deletingId === model.id}
-                    className="px-3 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-sm transition disabled:opacity-50"
-                  >
-                    {deletingId === model.id ? '...' : '×'}
-                  </button>
-                </div>
-              </div>
+                model={model}
+                showActions
+                onDelete={handleDelete}
+                isDeleting={deletingId === model.id}
+              />
             ))}
           </div>
         )}
