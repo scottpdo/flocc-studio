@@ -89,7 +89,15 @@ export function compileModel(model: StudioModel): CompiledModel {
         if (hasMoveForward || hasFlocking) {
           // Random initial velocity
           const angle = utils.random(0, Math.PI * 2, true);
-          const speed = agentType.behaviors.find(b => b.type === 'move-forward')?.params.speed ?? 2;
+          const speedParam = agentType.behaviors.find(b => b.type === 'move-forward')?.params.speed ?? 2;
+          // Resolve parameter reference (e.g. "$speed" -> env.get("speed"))
+          let speed: number;
+          if (typeof speedParam === 'string' && speedParam.startsWith('$')) {
+            const paramName = speedParam.slice(1);
+            speed = (env.get(paramName) as number) ?? 2;
+          } else {
+            speed = speedParam as number;
+          }
           agent.set('vx', Math.cos(angle) * speed);
           agent.set('vy', Math.sin(angle) * speed);
         }
