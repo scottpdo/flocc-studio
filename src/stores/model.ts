@@ -20,7 +20,7 @@ export function createDefaultModel(): StudioModel {
     description: '',
     environment: {
       width: 800,
-      height: 600,
+      height: 800,
       wraparound: true,
       backgroundColor: '#1a1a2e',
     },
