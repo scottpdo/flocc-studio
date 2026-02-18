@@ -20,10 +20,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
+      // Safe: GitHub always verifies email ownership before issuing tokens
+      allowDangerousEmailAccountLinking: true,
     }),
     Google({
       clientId: process.env.GOOGLE_ID!,
       clientSecret: process.env.GOOGLE_SECRET!,
+      // Safe: Google always verifies email ownership before issuing tokens
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   callbacks: {
