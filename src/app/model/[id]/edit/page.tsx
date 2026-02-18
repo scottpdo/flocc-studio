@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useModelStore } from '@/stores/model';
 import { loadModel } from '@/lib/api/models';
@@ -20,9 +20,18 @@ export default function ModelEditPage({ params }: Props) {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Track if we've loaded for this id to prevent re-fetching
+  const loadedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     async function load() {
+      // Skip if we've already loaded this model
+      if (loadedIdRef.current === id) {
+        setLoading(false);
+        return;
+      }
+
       // If editing an existing model, load it from the database
       if (id !== 'new') {
         setLoading(true);
@@ -30,21 +39,24 @@ export default function ModelEditPage({ params }: Props) {
         
         if (loadedModel) {
           setModel(loadedModel);
+          loadedIdRef.current = id;
         } else {
           setError('Model not found');
         }
         setLoading(false);
       } else {
-        // Create a new model
+        // Create a new model only if we don't have one
         if (!model) {
           newModel();
         }
+        loadedIdRef.current = id;
         setLoading(false);
       }
     }
 
     load();
-  }, [id, model, newModel, setModel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]); // Only re-run when id changes, not when model/setModel change
 
   if (loading) {
     return (
