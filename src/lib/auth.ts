@@ -21,11 +21,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
     }),
-    // Google OAuth (uncomment when credentials are configured)
-    // Google({
-    //   clientId: process.env.GOOGLE_ID!,
-    //   clientSecret: process.env.GOOGLE_SECRET!,
-    // }),
+    Google({
+      clientId: process.env.GOOGLE_ID!,
+      clientSecret: process.env.GOOGLE_SECRET!,
+    }),
   ],
   callbacks: {
     async session({ session, user }) {
