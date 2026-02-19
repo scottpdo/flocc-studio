@@ -15,6 +15,7 @@ import { useSimulation } from '@/lib/flocc/useSimulation';
 import { loadModel } from '@/lib/api/models';
 import { Canvas } from '@/components/simulation/Canvas';
 import { Controls } from '@/components/simulation/Controls';
+import { RuntimeParameters } from '@/components/simulation/RuntimeParameters';
 import { AuthButtons } from '@/components/auth/AuthButtons';
 import type { StudioModel } from '@/types';
 
@@ -141,11 +142,21 @@ export default function ModelViewPage({ params }: Props) {
       </div>
 
       {/* Simulation Area */}
-      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full">
-        <div className="flex-1 p-4">
-          <Canvas onContainerReady={handleContainerReady} />
+      <div className="flex-1 flex max-w-7xl mx-auto w-full">
+        {/* Main canvas area */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 p-4">
+            <Canvas onContainerReady={handleContainerReady} />
+          </div>
+          <Controls onReset={initializeSimulation} />
         </div>
-        <Controls onReset={initializeSimulation} />
+
+        {/* Parameters sidebar (if any parameters exist) */}
+        {modelData.parameters.length > 0 && (
+          <aside className="w-64 p-4 border-l border-gray-800 shrink-0">
+            <RuntimeParameters />
+          </aside>
+        )}
       </div>
     </div>
   );

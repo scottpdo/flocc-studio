@@ -16,6 +16,8 @@ import { useSimulationStore } from '@/stores/simulation';
 import { useSimulation } from '@/lib/flocc/useSimulation';
 import { saveModel } from '@/lib/api/models';
 import { AgentPanel } from './AgentPanel';
+import { ParametersAccordion } from './ParametersAccordion';
+import { EnvironmentAccordion } from './EnvironmentAccordion';
 import { PropertyPanel } from './PropertyPanel';
 import { ModelSettingsDropdown } from './ModelSettingsDropdown';
 import { Canvas } from '@/components/simulation/Canvas';
@@ -61,18 +63,8 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
     }, 50);
   }, [setContainer, initializeSimulation]);
 
-  // Re-initialize simulation when model changes significantly
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      initializeSimulation();
-    }, 500);
-    return () => clearTimeout(timeout);
-  }, [
-    model?.agentTypes,
-    model?.populations,
-    model?.environment,
-    initializeSimulation,
-  ]);
+  // Note: Re-initialization on model structure changes is now handled
+  // inside useSimulation hook to properly separate structure vs parameter changes
 
   // Close properties panel on Escape key
   useEffect(() => {
@@ -199,14 +191,16 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Agent Types + Properties Panel */}
+        {/* Left Sidebar - Accordions + Properties Panel */}
         <aside className="flex shrink-0 border-r border-gray-800">
-          {/* Agent Types Panel - Always visible */}
-          <div className="w-64 bg-gray-900 overflow-hidden">
+          {/* Main sidebar with accordions */}
+          <div className="w-64 bg-gray-900 overflow-y-auto">
             <AgentPanel
               selectedAgentId={selectedAgentId}
               onSelectAgent={setSelectedAgentId}
             />
+            <ParametersAccordion />
+            <EnvironmentAccordion />
           </div>
 
           {/* Properties Panel - Slides out when agent selected */}

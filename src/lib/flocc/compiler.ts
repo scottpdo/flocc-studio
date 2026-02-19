@@ -89,7 +89,15 @@ export function compileModel(model: StudioModel): CompiledModel {
         if (hasMoveForward || hasFlocking) {
           // Random initial velocity
           const angle = utils.random(0, Math.PI * 2, true);
-          const speed = agentType.behaviors.find(b => b.type === 'move-forward')?.params.speed ?? 2;
+          const speedParam = agentType.behaviors.find(b => b.type === 'move-forward')?.params.speed ?? 2;
+          // Resolve parameter reference (e.g. "$speed" -> env.get("speed"))
+          let speed: number;
+          if (typeof speedParam === 'string' && speedParam.startsWith('$')) {
+            const paramName = speedParam.slice(1);
+            speed = (env.get(paramName) as number) ?? 2;
+          } else {
+            speed = speedParam as number;
+          }
           agent.set('vx', Math.cos(angle) * speed);
           agent.set('vy', Math.sin(angle) * speed);
         }
@@ -148,8 +156,9 @@ function compileBehavior(
 
   switch (type) {
     case 'random-walk': {
-      const speed = params.speed ?? 2;
+      const speedParam = params.speed;
       return (agent: Agent) => {
+        const speed = resolveParam(speedParam, agent, 2);
         const angle = utils.random(0, Math.PI * 2, true);
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
@@ -167,8 +176,9 @@ function compileBehavior(
     }
 
     case 'move-forward': {
-      const speed = params.speed ?? 2;
+      const speedParam = params.speed;
       return (agent: Agent) => {
+        const speed = resolveParam(speedParam, agent, 2);
         let vx = agent.get('vx') as number ?? 0;
         let vy = agent.get('vy') as number ?? 0;
         
@@ -251,12 +261,16 @@ function compileBehavior(
     }
 
     case 'separate': {
-      const radius = params.radius ?? 25;
-      const strength = params.strength ?? 1;
+      const radiusParam = params.radius;
+      const strengthParam = params.strength;
       
       return (agent: Agent) => {
         const env = agent.environment;
         if (!env) return;
+        
+        // Resolve parameters at runtime (supports "$paramName" references)
+        const radius = resolveParam(radiusParam, agent, 25);
+        const strength = resolveParam(strengthParam, agent, 1);
         
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
@@ -293,12 +307,16 @@ function compileBehavior(
     }
 
     case 'align': {
-      const radius = params.radius ?? 50;
-      const strength = params.strength ?? 1;
+      const radiusParam = params.radius;
+      const strengthParam = params.strength;
       
       return (agent: Agent) => {
         const env = agent.environment;
         if (!env) return;
+        
+        // Resolve parameters at runtime
+        const radius = resolveParam(radiusParam, agent, 50);
+        const strength = resolveParam(strengthParam, agent, 1);
         
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
@@ -338,12 +356,16 @@ function compileBehavior(
     }
 
     case 'cohere': {
-      const radius = params.radius ?? 75;
-      const strength = params.strength ?? 1;
+      const radiusParam = params.radius;
+      const strengthParam = params.strength;
       
       return (agent: Agent) => {
         const env = agent.environment;
         if (!env) return;
+        
+        // Resolve parameters at runtime
+        const radius = resolveParam(radiusParam, agent, 75);
+        const strength = resolveParam(strengthParam, agent, 1);
         
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
@@ -602,6 +624,32 @@ function executeAction(
       break;
     }
   }
+}
+
+// ============================================================================
+// Parameter Resolution
+// ============================================================================
+
+/**
+ * Resolve a parameter value. If the value is a string starting with "$",
+ * it's treated as a parameter reference and read from the environment at runtime.
+ * Otherwise, returns the literal value.
+ * 
+ * Usage in behavior params:
+ *   radius: 25          -> returns 25
+ *   radius: "$myParam"  -> returns env.get("myParam") at runtime
+ */
+function resolveParam(
+  value: any, 
+  agent: Agent, 
+  fallback: any
+): any {
+  if (typeof value === 'string' && value.startsWith('$')) {
+    const paramName = value.slice(1);
+    const envValue = agent.environment?.get(paramName);
+    return envValue !== undefined ? envValue : fallback;
+  }
+  return value ?? fallback;
 }
 
 // ============================================================================

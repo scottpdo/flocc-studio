@@ -17,6 +17,7 @@ import {
   type ParamDef,
 } from '@/lib/flocc/behaviors';
 import type { AgentType, Behavior, BehaviorType } from '@/types';
+import { ParamInput } from './ParamInput';
 
 interface BehaviorBuilderProps {
   agentType: AgentType;
@@ -158,14 +159,14 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
             <label className="text-xs text-gray-400 w-20 shrink-0">{param.name}</label>
             
             {param.type === 'number' && (
-              <input
+              <ParamInput
                 type="number"
                 value={behavior.params[param.key] ?? param.default}
-                onChange={(e) => updateParam(param.key, parseFloat(e.target.value))}
+                onChange={(val) => updateParam(param.key, val)}
                 min={param.min}
                 max={param.max}
                 step={param.step}
-                className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                defaultValue={param.default}
               />
             )}
             
@@ -185,11 +186,11 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
             )}
             
             {param.type === 'boolean' && (
-              <input
-                type="checkbox"
-                checked={behavior.params[param.key] ?? param.default}
-                onChange={(e) => updateParam(param.key, e.target.checked)}
-                className="rounded bg-gray-700 border-gray-600"
+              <ParamInput
+                type="boolean"
+                value={behavior.params[param.key] ?? param.default}
+                onChange={(val) => updateParam(param.key, val)}
+                defaultValue={param.default}
               />
             )}
             

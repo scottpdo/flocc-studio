@@ -6,7 +6,7 @@
  */
 
 import { Environment, Agent, CanvasRenderer, utils } from 'flocc';
-import type { StudioModel, AgentType } from '@/types';
+import type { StudioModel, AgentType, Parameter } from '@/types';
 
 // ============================================================================
 // Types
@@ -41,6 +41,7 @@ export class SimulationEngine {
   private agentIdCounter: number = 0;
   private agentTypeMetadata: Map<string, AgentTypeMetadata> = new Map();
   private setupFn: ((env: Environment) => void) | null = null;
+  private parameters: Parameter[] = [];
   
   private onTick?: (tick: number, agentCount: number) => void;
   private onError?: (error: Error) => void;
@@ -57,7 +58,8 @@ export class SimulationEngine {
   initialize(
     setupFn: (env: Environment) => void,
     agentTypes: Map<string, AgentTypeMetadata>,
-    envConfig: { width: number; height: number; wraparound: boolean; backgroundColor?: string }
+    envConfig: { width: number; height: number; wraparound: boolean; backgroundColor?: string },
+    parameters: Parameter[] = []
   ): void {
     this.cleanup();
 
@@ -65,6 +67,7 @@ export class SimulationEngine {
       // Store setup function for reset
       this.setupFn = setupFn;
       this.agentTypeMetadata = agentTypes;
+      this.parameters = parameters;
 
       // Reset counters
       this.tickCount = 0;
@@ -76,6 +79,9 @@ export class SimulationEngine {
         width: envConfig.width,
         height: envConfig.height,
       });
+
+      // Store parameters on the environment for runtime access
+      this.syncParametersToEnv();
 
       // Run setup to create agents
       setupFn(this.env);
@@ -177,6 +183,9 @@ export class SimulationEngine {
       this.env.removeAgent(agent);
     }
 
+    // Re-sync parameters (they may have changed)
+    this.syncParametersToEnv();
+
     // Re-run setup
     this.setupFn(this.env);
 
@@ -188,6 +197,42 @@ export class SimulationEngine {
 
     this.render();
     this.onTick?.(this.tickCount, this.env.getAgents().length);
+  }
+
+  /**
+   * Update a parameter value at runtime
+   * This allows parameters to be adjusted while the simulation is running
+   */
+  updateParameter(name: string, value: any): void {
+    if (!this.env) return;
+    
+    // Update local cache
+    const param = this.parameters.find(p => p.name === name);
+    if (param) {
+      param.value = value;
+    }
+    
+    // Update environment
+    this.env.set(name, value);
+  }
+
+  /**
+   * Update all parameters from a new parameter array
+   * Called when the model store changes
+   */
+  syncParameters(parameters: Parameter[]): void {
+    this.parameters = parameters;
+    this.syncParametersToEnv();
+  }
+
+  /**
+   * Sync stored parameters to the environment
+   */
+  private syncParametersToEnv(): void {
+    if (!this.env) return;
+    for (const param of this.parameters) {
+      this.env.set(param.name, param.value);
+    }
   }
 
   /**
