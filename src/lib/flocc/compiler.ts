@@ -217,7 +217,7 @@ function compileBehavior(
         
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
-        const target = findNearest(agent, targetTypeId, envWidth, envHeight, wraparound);
+        const target = findNearest(agent, targetTypeId);
         
         if (target) {
           const tx = target.get('x') as number;
@@ -244,7 +244,7 @@ function compileBehavior(
         
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
-        const target = findNearest(agent, targetTypeId, envWidth, envHeight, wraparound);
+        const target = findNearest(agent, targetTypeId);
         
         if (target) {
           const tx = target.get('x') as number;
@@ -278,31 +278,29 @@ function compileBehavior(
         
         let steerX = 0;
         let steerY = 0;
-        let count = 0;
         
-        for (const other of env.getAgents()) {
-          if (other === agent) continue;
-          if (other.get('typeId') !== typeId) continue;
-          
+        const others = env.helpers.kdtree.agentsWithinDistance(agent, radius, (a) => a.get('typeId') === typeId);
+        if (others.length === 0) {
+          return;
+        }
+
+        for (const other of others) {
           const ox = other.get('x') as number;
           const oy = other.get('y') as number;
           const [dx, dy] = getDirection(x, y, ox, oy, envWidth, envHeight, wraparound);
           const dist = Math.sqrt(dx * dx + dy * dy);
           
-          if (dist > 0 && dist < radius) {
+          if (dist > 0) {
             // Weight by inverse distance (closer = stronger repulsion)
             steerX -= (dx / dist) / dist;
             steerY -= (dy / dist) / dist;
-            count++;
           }
         }
         
-        if (count > 0) {
-          const vx = (agent.get('vx') as number) ?? 0;
-          const vy = (agent.get('vy') as number) ?? 0;
-          agent.set('vx', vx + steerX * strength);
-          agent.set('vy', vy + steerY * strength);
-        }
+        const vx = (agent.get('vx') as number) ?? 0;
+        const vy = (agent.get('vy') as number) ?? 0;
+        agent.set('vx', vx + steerX * strength);
+        agent.set('vy', vy + steerY * strength);
       };
     }
 
@@ -318,33 +316,14 @@ function compileBehavior(
         const radius = resolveParam(radiusParam, agent, 50);
         const strength = resolveParam(strengthParam, agent, 1);
         
-        const x = agent.get('x') as number;
-        const y = agent.get('y') as number;
         const typeId = agent.get('typeId') as string;
-        
-        let avgVx = 0;
-        let avgVy = 0;
-        let count = 0;
-        
-        for (const other of env.getAgents()) {
-          if (other === agent) continue;
-          if (other.get('typeId') !== typeId) continue;
-          
-          const ox = other.get('x') as number;
-          const oy = other.get('y') as number;
-          const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
-          
-          if (dist < radius) {
-            avgVx += (other.get('vx') as number) ?? 0;
-            avgVy += (other.get('vy') as number) ?? 0;
-            count++;
-          }
-        }
+
+        const neighbors = env.helpers.kdtree.agentsWithinDistance(agent, radius, (a) => a.get('typeId') === typeId);
+        const count = neighbors.length;
         
         if (count > 0) {
-          avgVx /= count;
-          avgVy /= count;
-          
+          const avgVx = utils.mean(neighbors.map((n) => n.get('vx')));
+          const avgVy = utils.mean(neighbors.map((n) => n.get('vy')));
           const vx = (agent.get('vx') as number) ?? 0;
           const vy = (agent.get('vy') as number) ?? 0;
           
@@ -373,12 +352,13 @@ function compileBehavior(
         
         let centerX = 0;
         let centerY = 0;
-        let count = 0;
         
-        for (const other of env.getAgents()) {
-          if (other === agent) continue;
-          if (other.get('typeId') !== typeId) continue;
-          
+        const others = env.helpers.kdtree.agentsWithinDistance(agent, radius, (a) => a.get('typeId') === typeId);
+        if (others.length === 0) {
+          return;
+        }
+
+        for (const other of others) {
           const ox = other.get('x') as number;
           const oy = other.get('y') as number;
           const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
@@ -388,21 +368,18 @@ function compileBehavior(
             const [dx, dy] = getDirection(x, y, ox, oy, envWidth, envHeight, wraparound);
             centerX += dx;
             centerY += dy;
-            count++;
           }
         }
         
-        if (count > 0) {
-          centerX /= count;
-          centerY /= count;
-          
-          const vx = (agent.get('vx') as number) ?? 0;
-          const vy = (agent.get('vy') as number) ?? 0;
-          
-          // Steer toward center of mass
-          agent.set('vx', vx + centerX * strength * 0.01);
-          agent.set('vy', vy + centerY * strength * 0.01);
-        }
+        centerX /= others.length;
+        centerY /= others.length;
+        
+        const vx = (agent.get('vx') as number) ?? 0;
+        const vy = (agent.get('vy') as number) ?? 0;
+        
+        // Steer toward center of mass
+        agent.set('vx', vx + centerX * strength * 0.01);
+        agent.set('vy', vy + centerY * strength * 0.01);
       };
     }
 
@@ -455,29 +432,14 @@ function compileBehavior(
         const env = agent.environment;
         if (!env) return;
         
-        const x = agent.get('x') as number;
-        const y = agent.get('y') as number;
-        
         // Find colliding agent
-        let collidingAgent: Agent | null = null;
-        for (const other of env.getAgents()) {
-          if (other === agent) continue;
-          if (other.get('typeId') !== targetTypeId) continue;
-          
-          const ox = other.get('x') as number;
-          const oy = other.get('y') as number;
-          const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
-          
-          if (dist < radius) {
-            collidingAgent = other;
-            break;
-          }
+        const neighbors = env.helpers.kdtree.agentsWithinDistance(agent, radius, (a) => a.get('typeId') === targetTypeId);
+        if (neighbors.length === 0) {
+          return;
         }
         
-        if (!collidingAgent) return;
-        
         // Execute action
-        executeAction(agent, collidingAgent, action, params, env);
+        executeAction(agent, neighbors[0], action, params, env);
       };
     }
 
@@ -661,34 +623,12 @@ function resolveParam(
  */
 function findNearest(
   agent: Agent, 
-  typeId: string,
-  envWidth: number,
-  envHeight: number,
-  wraparound: boolean
+  typeId: string
 ): Agent | null {
   const env = agent.environment;
   if (!env) return null;
   
-  const x = agent.get('x') as number;
-  const y = agent.get('y') as number;
-  
-  let nearest: Agent | null = null;
-  let nearestDist = Infinity;
-  
-  for (const other of env.getAgents()) {
-    if (other === agent) continue;
-    if (other.get('typeId') !== typeId) continue;
-    
-    const ox = other.get('x') as number;
-    const oy = other.get('y') as number;
-    const dist = getDistance(x, y, ox, oy, envWidth, envHeight, wraparound);
-    
-    if (dist < nearestDist) {
-      nearestDist = dist;
-      nearest = other;
-    }
-  }
-  
+  const nearest = env.helpers.kdtree.nearestNeighbor(agent, (a) => a.get('typeId') === typeId);
   return nearest;
 }
 

@@ -5,7 +5,7 @@
  * Manages the Environment, rendering, and animation loop.
  */
 
-import { Environment, Agent, CanvasRenderer, utils } from 'flocc';
+import { Environment, Agent, CanvasRenderer, utils, KDTree } from 'flocc';
 import type { StudioModel, AgentType, Parameter } from '@/types';
 
 // ============================================================================
@@ -91,6 +91,8 @@ export class SimulationEngine {
         agent.set('_id', `agent_${this.agentIdCounter++}`);
         this.applyAgentVisuals(agent);
       }
+
+      this.env.use(new KDTree(this.env.getAgents()));
 
       // Create renderer
       this.renderer = new CanvasRenderer(this.env, {
