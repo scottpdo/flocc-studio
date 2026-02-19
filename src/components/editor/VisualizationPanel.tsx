@@ -27,10 +27,7 @@ const AGGREGATIONS = [
 ];
 
 export function VisualizationPanel({ visualizationId, onClose }: VisualizationPanelProps) {
-  const visualization = useModelStore(
-    (s) => s.model?.visualizations?.find((v) => v.id === visualizationId)
-  );
-  const agentTypes = useModelStore((s) => s.model?.agentTypes ?? []);
+  const model = useModelStore((s) => s.model);
   const updateVisualization = useModelStore((s) => s.updateVisualization);
   const addSeries = useModelStore((s) => s.addSeries);
   const updateSeries = useModelStore((s) => s.updateSeries);
@@ -38,6 +35,13 @@ export function VisualizationPanel({ visualizationId, onClose }: VisualizationPa
   
   const engine = useSimulationStore((s) => s.engine);
   const chartCanvas = engine?.getChartCanvas(visualizationId);
+
+  if (!model) {
+    return null;
+  }
+
+  const visualization = model.visualizations?.find((v) => v.id === visualizationId);
+  const agentTypes = model.agentTypes;
 
   if (!visualization) {
     return (

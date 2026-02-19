@@ -21,10 +21,14 @@ export function VisualizationsAccordion({
   selectedVisualizationId,
   onSelectVisualization,
 }: VisualizationsAccordionProps) {
-  const visualizations = useModelStore((s) => s.model?.visualizations ?? []);
-  const agentTypes = useModelStore((s) => s.model?.agentTypes ?? []);
+  const model = useModelStore((s) => s.model);
   const addVisualization = useModelStore((s) => s.addVisualization);
   const removeVisualization = useModelStore((s) => s.removeVisualization);
+
+  if (!model) return null;
+
+  const visualizations = model.visualizations ?? [];
+  const agentTypes = model.agentTypes;
 
   const handleAddVisualization = () => {
     // Create a default line chart with one series per agent type (count)
