@@ -526,11 +526,11 @@ function compileBehavior(
           if (vx !== null) child.set('vx', vx);
           if (vy !== null) child.set('vy', vy);
           
-          // Copy custom properties
+          // For custom properties, use default value
           const agentType = model.agentTypes.find(t => t.id === agent.get('typeId'));
           if (agentType) {
             for (const prop of agentType.properties) {
-              child.set(prop.name, agent.get(prop.name));
+              child.set(prop.name, prop.defaultValue);
             }
           }
           
