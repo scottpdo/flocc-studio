@@ -90,7 +90,7 @@ export function useSimulation() {
     } catch (error) {
       console.error('Failed to compile model:', error);
     }
-  }, [model, setEngine, updateState, setStatus, speed, getStructureHash]);
+  }, [setEngine, updateState, setStatus, speed, getStructureHash()]);
 
   // Sync parameter changes to the running engine (for runtime adjustment)
   // This should NOT trigger re-initialization, only update the environment values
