@@ -207,7 +207,7 @@ function compileBehavior(
     }
 
     case 'move-toward': {
-      const speed = params.speed ?? 2;
+      const speedParam = params.speed;
       const targetTypeId = params.target;
       if (!targetTypeId) return null;
       
@@ -215,6 +215,7 @@ function compileBehavior(
         const env = agent.environment;
         if (!env) return;
         
+        const speed = resolveParam(speedParam, agent, 2);
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
         const target = findNearest(agent, targetTypeId, envWidth, envHeight, wraparound);
@@ -234,7 +235,7 @@ function compileBehavior(
     }
 
     case 'move-away': {
-      const speed = params.speed ?? 2;
+      const speedParam = params.speed;
       const targetTypeId = params.target;
       if (!targetTypeId) return null;
       
@@ -242,6 +243,7 @@ function compileBehavior(
         const env = agent.environment;
         if (!env) return;
         
+        const speed = resolveParam(speedParam, agent, 2);
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
         const target = findNearest(agent, targetTypeId, envWidth, envHeight, wraparound);
@@ -527,9 +529,10 @@ function compileBehavior(
     }
 
     case 'die': {
-      const probability = params.probability ?? 0.01;
+      const probabilityParam = params.probability;
       
       return (agent: Agent) => {
+        const probability = resolveParam(probabilityParam, agent, 0.01);
         if (utils.random(0, 1, true) < probability) {
           agent.environment?.removeAgent(agent);
         }
@@ -537,12 +540,13 @@ function compileBehavior(
     }
 
     case 'reproduce': {
-      const probability = params.probability ?? 0.01;
+      const probabilityParam = params.probability;
       
       return (agent: Agent) => {
         const env = agent.environment;
         if (!env) return;
         
+        const probability = resolveParam(probabilityParam, agent, 0.01);
         if (utils.random(0, 1, true) < probability) {
           const child = new Agent();
           const x = agent.get('x') as number;
