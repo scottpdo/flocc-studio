@@ -18,10 +18,13 @@ import { saveModel } from '@/lib/api/models';
 import { AgentPanel } from './AgentPanel';
 import { ParametersAccordion } from './ParametersAccordion';
 import { EnvironmentAccordion } from './EnvironmentAccordion';
+import { VisualizationsAccordion } from './VisualizationsAccordion';
 import { PropertyPanel } from './PropertyPanel';
+import { VisualizationPanel } from './VisualizationPanel';
 import { ModelSettingsDropdown } from './ModelSettingsDropdown';
 import { Canvas } from '@/components/simulation/Canvas';
 import { Controls } from '@/components/simulation/Controls';
+import { LineChartList } from '@/components/simulation/LineChartDisplay';
 
 interface EditorLayoutProps {
   modelId: string;
@@ -44,10 +47,22 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   
   const captureThumbnail = useSimulationStore((s) => s.captureThumbnail);
 
-  // Selection state - controls whether properties panel is shown
+  // Selection state - controls which panel is shown
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedVisualizationId, setSelectedVisualizationId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // When selecting an agent, deselect visualization and vice versa
+  const handleSelectAgent = useCallback((id: string | null) => {
+    setSelectedAgentId(id);
+    if (id !== null) setSelectedVisualizationId(null);
+  }, []);
+
+  const handleSelectVisualization = useCallback((id: string | null) => {
+    setSelectedVisualizationId(id);
+    if (id !== null) setSelectedAgentId(null);
+  }, []);
 
   // Track if this is a new model (not yet saved to DB)
   const isNewModel = modelId === 'new';
@@ -66,21 +81,26 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   // Note: Re-initialization on model structure changes is now handled
   // inside useSimulation hook to properly separate structure vs parameter changes
 
-  // Close properties panel on Escape key
+  // Close panels on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedAgentId) {
-        setSelectedAgentId(null);
+      if (e.key === 'Escape') {
+        if (selectedAgentId) setSelectedAgentId(null);
+        if (selectedVisualizationId) setSelectedVisualizationId(null);
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedAgentId]);
+  }, [selectedAgentId, selectedVisualizationId]);
 
-  // Close properties panel function
+  // Close panel functions
   const closePropertiesPanel = useCallback(() => {
     setSelectedAgentId(null);
+  }, []);
+
+  const closeVisualizationPanel = useCallback(() => {
+    setSelectedVisualizationId(null);
   }, []);
 
   // Save handler
@@ -118,7 +138,7 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
 
   if (!model) return null;
 
-  const propertiesPanelOpen = selectedAgentId !== null;
+  const sidePanelOpen = selectedAgentId !== null || selectedVisualizationId !== null;
 
   return (
     <div className="h-screen bg-gray-950 text-white flex flex-col">
@@ -197,45 +217,67 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
           <div className="w-64 bg-gray-900 overflow-y-auto">
             <AgentPanel
               selectedAgentId={selectedAgentId}
-              onSelectAgent={setSelectedAgentId}
+              onSelectAgent={handleSelectAgent}
             />
             <ParametersAccordion />
+            <VisualizationsAccordion
+              selectedVisualizationId={selectedVisualizationId}
+              onSelectVisualization={handleSelectVisualization}
+            />
             <EnvironmentAccordion />
           </div>
 
-          {/* Properties Panel - Slides out when agent selected */}
+          {/* Side Panel - Slides out when agent or visualization selected */}
           <div
             className={`bg-gray-900 border-l border-gray-800 overflow-hidden transition-all duration-200 ease-in-out ${
-              propertiesPanelOpen ? 'w-80' : 'w-0'
+              sidePanelOpen ? 'w-80' : 'w-0'
             }`}
           >
-            <div className="w-80 h-full flex flex-col">
-              {/* Close button header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-                <span className="text-sm font-medium text-gray-400">Properties</span>
-                <button
-                  onClick={closePropertiesPanel}
-                  className="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-white transition"
-                  title="Close (Esc)"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+            <div className="w-80 h-full">
+              {selectedAgentId && (
+                <div className="h-full flex flex-col">
+                  {/* Close button header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+                    <span className="text-sm font-medium text-gray-400">Properties</span>
+                    <button
+                      onClick={closePropertiesPanel}
+                      className="p-1 rounded hover:bg-gray-800 text-gray-500 hover:text-white transition"
+                      title="Close (Esc)"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Properties content */}
+                  <div className="flex-1 overflow-y-auto">
+                    <PropertyPanel selectedAgentId={selectedAgentId} />
+                  </div>
+                </div>
+              )}
               
-              {/* Properties content */}
-              <div className="flex-1 overflow-y-auto">
-                <PropertyPanel selectedAgentId={selectedAgentId} />
-              </div>
+              {selectedVisualizationId && (
+                <VisualizationPanel
+                  visualizationId={selectedVisualizationId}
+                  onClose={closeVisualizationPanel}
+                />
+              )}
             </div>
           </div>
         </aside>
 
-        {/* Right - Canvas */}
+        {/* Right - Canvas + Charts */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 p-4">
+          <div className="flex-1 p-4 overflow-y-auto">
             <Canvas onContainerReady={handleContainerReady} />
+            
+            {/* Line Charts */}
+            {model.visualizations && model.visualizations.length > 0 && (
+              <div className="mt-4">
+                <LineChartList visualizations={model.visualizations} />
+              </div>
+            )}
           </div>
           <Controls onReset={initializeSimulation} />
         </main>

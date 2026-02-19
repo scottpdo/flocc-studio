@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import { nanoid } from 'nanoid';
-import type { StudioModel, AgentType, Behavior, Population, Parameter } from '@/types';
+import type { StudioModel, AgentType, Behavior, Population, Parameter, Visualization, ChartSeries } from '@/types';
 
 // ============================================================================
 // Default Model
@@ -27,6 +27,7 @@ export function createDefaultModel(): StudioModel {
     agentTypes: [],
     populations: [],
     parameters: [],
+    visualizations: [],
     tags: [],
     version: 1,
     createdAt: new Date().toISOString(),
@@ -80,6 +81,14 @@ interface ModelActions {
   addParameter: (parameter: Parameter) => void;
   updateParameter: (id: string, changes: Partial<Parameter>) => void;
   removeParameter: (id: string) => void;
+
+  // Visualizations
+  addVisualization: (visualization: Visualization) => void;
+  updateVisualization: (id: string, changes: Partial<Visualization>) => void;
+  removeVisualization: (id: string) => void;
+  addSeries: (visualizationId: string, series: ChartSeries) => void;
+  updateSeries: (visualizationId: string, seriesId: string, changes: Partial<ChartSeries>) => void;
+  removeSeries: (visualizationId: string, seriesId: string) => void;
 }
 
 type ModelStore = ModelState & ModelActions;
@@ -271,6 +280,73 @@ export const useModelStore = create<ModelStore>()(
           if (state.model) {
             state.model.parameters = state.model.parameters.filter((p) => p.id !== id);
             state.isDirty = true;
+          }
+        }),
+
+      // Visualizations
+      addVisualization: (visualization) =>
+        set((state) => {
+          if (state.model) {
+            if (!state.model.visualizations) {
+              state.model.visualizations = [];
+            }
+            state.model.visualizations.push(visualization);
+            state.isDirty = true;
+          }
+        }),
+
+      updateVisualization: (id, changes) =>
+        set((state) => {
+          if (state.model?.visualizations) {
+            const index = state.model.visualizations.findIndex((v) => v.id === id);
+            if (index !== -1) {
+              state.model.visualizations[index] = { ...state.model.visualizations[index], ...changes };
+              state.isDirty = true;
+            }
+          }
+        }),
+
+      removeVisualization: (id) =>
+        set((state) => {
+          if (state.model?.visualizations) {
+            state.model.visualizations = state.model.visualizations.filter((v) => v.id !== id);
+            state.isDirty = true;
+          }
+        }),
+
+      addSeries: (visualizationId, series) =>
+        set((state) => {
+          if (state.model?.visualizations) {
+            const viz = state.model.visualizations.find((v) => v.id === visualizationId);
+            if (viz) {
+              viz.series.push(series);
+              state.isDirty = true;
+            }
+          }
+        }),
+
+      updateSeries: (visualizationId, seriesId, changes) =>
+        set((state) => {
+          if (state.model?.visualizations) {
+            const viz = state.model.visualizations.find((v) => v.id === visualizationId);
+            if (viz) {
+              const index = viz.series.findIndex((s) => s.id === seriesId);
+              if (index !== -1) {
+                viz.series[index] = { ...viz.series[index], ...changes };
+                state.isDirty = true;
+              }
+            }
+          }
+        }),
+
+      removeSeries: (visualizationId, seriesId) =>
+        set((state) => {
+          if (state.model?.visualizations) {
+            const viz = state.model.visualizations.find((v) => v.id === visualizationId);
+            if (viz) {
+              viz.series = viz.series.filter((s) => s.id !== seriesId);
+              state.isDirty = true;
+            }
           }
         }),
     })),

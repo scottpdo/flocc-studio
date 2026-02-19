@@ -19,6 +19,7 @@ export function useSimulation() {
   
   const model = useModelStore((s) => s.model);
   const parameters = useModelStore((s) => s.model?.parameters);
+  const visualizations = useModelStore((s) => s.model?.visualizations);
   const setEngine = useSimulationStore((s) => s.setEngine);
   const updateState = useSimulationStore((s) => s.updateState);
   const setStatus = useSimulationStore((s) => s.setStatus);
@@ -35,11 +36,12 @@ export function useSimulation() {
   // Compute a hash of model structure (excluding parameters) to detect structural changes
   const getStructureHash = useCallback(() => {
     if (!model) return null;
-    // Hash based on agent types, populations, and environment - NOT parameters
+    // Hash based on agent types, populations, environment, and visualizations - NOT parameters
     return JSON.stringify({
       agentTypes: model.agentTypes,
       populations: model.populations,
       environment: model.environment,
+      visualizations: model.visualizations,
     });
   }, [model]);
 
@@ -71,12 +73,13 @@ export function useSimulation() {
         setEngine(engineRef.current);
       }
 
-      // Initialize with compiled model and parameters
+      // Initialize with compiled model, parameters, and visualizations
       engineRef.current.initialize(
         compiled.setup,
         compiled.agentTypes,
         compiled.envConfig,
-        model.parameters
+        model.parameters,
+        model.visualizations ?? []
       );
 
       // Apply current speed setting

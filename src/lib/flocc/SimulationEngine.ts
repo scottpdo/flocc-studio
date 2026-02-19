@@ -5,8 +5,8 @@
  * Manages the Environment, rendering, and animation loop.
  */
 
-import { Environment, Agent, CanvasRenderer, utils, KDTree } from 'flocc';
-import type { StudioModel, AgentType, Parameter } from '@/types';
+import { Environment, Agent, CanvasRenderer, LineChartRenderer, utils, KDTree } from 'flocc';
+import type { StudioModel, AgentType, Parameter, Visualization } from '@/types';
 
 // ============================================================================
 // Types
@@ -42,6 +42,8 @@ export class SimulationEngine {
   private agentTypeMetadata: Map<string, AgentTypeMetadata> = new Map();
   private setupFn: ((env: Environment) => void) | null = null;
   private parameters: Parameter[] = [];
+  private visualizations: Visualization[] = [];
+  private chartRenderers: Map<string, LineChartRenderer> = new Map();
   
   private onTick?: (tick: number, agentCount: number) => void;
   private onError?: (error: Error) => void;
@@ -59,7 +61,8 @@ export class SimulationEngine {
     setupFn: (env: Environment) => void,
     agentTypes: Map<string, AgentTypeMetadata>,
     envConfig: { width: number; height: number; wraparound: boolean; backgroundColor?: string },
-    parameters: Parameter[] = []
+    parameters: Parameter[] = [],
+    visualizations: Visualization[] = []
   ): void {
     this.cleanup();
 
@@ -105,8 +108,13 @@ export class SimulationEngine {
       this.container.innerHTML = '';
       this.container.appendChild(this.renderer.canvas);
 
+      // Initialize visualizations (line charts)
+      this.visualizations = visualizations;
+      this.initializeCharts();
+
       // Initial render
       this.renderer.render();
+      this.renderCharts();
 
       // Notify
       this.onTick?.(this.tickCount, this.env.getAgents().length);
@@ -302,8 +310,40 @@ export class SimulationEngine {
       this.renderer = null;
     }
     
+    // Clean up chart renderers
+    this.chartRenderers.clear();
+    this.visualizations = [];
+    
     this.env = null;
     this.setupFn = null;
+  }
+
+  /**
+   * Get chart canvas for a visualization by ID
+   * Returns null if visualization doesn't exist or isn't enabled
+   */
+  getChartCanvas(visualizationId: string): HTMLCanvasElement | null {
+    const renderer = this.chartRenderers.get(visualizationId);
+    return renderer?.canvas ?? null;
+  }
+
+  /**
+   * Get all chart canvases (for enabled visualizations)
+   */
+  getAllChartCanvases(): Map<string, HTMLCanvasElement> {
+    const canvases = new Map<string, HTMLCanvasElement>();
+    for (const [id, renderer] of this.chartRenderers) {
+      canvases.set(id, renderer.canvas);
+    }
+    return canvases;
+  }
+
+  /**
+   * Update visualizations configuration (e.g., when user adds/removes charts)
+   */
+  updateVisualizations(visualizations: Visualization[]): void {
+    this.visualizations = visualizations;
+    this.initializeCharts();
   }
 
   // ============================================================================
@@ -344,5 +384,134 @@ export class SimulationEngine {
   private render(): void {
     if (!this.renderer) return;
     this.renderer.render();
+    this.renderCharts();
+  }
+
+  /**
+   * Initialize LineChartRenderers for enabled visualizations
+   */
+  private initializeCharts(): void {
+    if (!this.env) return;
+
+    // Clear existing chart renderers
+    this.chartRenderers.clear();
+
+    for (const viz of this.visualizations) {
+      if (!viz.enabled || viz.type !== 'line-chart') continue;
+
+      // Create LineChartRenderer
+      const chartRenderer = new LineChartRenderer(this.env, {
+        width: 400,
+        height: 200,
+        autoScale: viz.options.autoScale,
+        autoScroll: viz.options.autoScroll,
+        range: viz.options.range ?? { min: 0, max: 100 },
+        background: '#ffffff',
+      });
+
+      // Add metrics for each series
+      for (const series of viz.series) {
+        const metricFn = this.createMetricFunction(series.metric);
+        if (metricFn) {
+          // Use a custom key that encodes the metric config
+          const metricKey = this.getMetricKey(series.metric);
+          chartRenderer.metric(metricKey, {
+            color: series.color,
+            fn: metricFn,
+          });
+        }
+      }
+
+      this.chartRenderers.set(viz.id, chartRenderer);
+    }
+  }
+
+  /**
+   * Render all chart visualizations
+   */
+  private renderCharts(): void {
+    for (const renderer of this.chartRenderers.values()) {
+      renderer.render();
+    }
+  }
+
+  /**
+   * Create a metric function for a series based on its configuration
+   */
+  private createMetricFunction(metric: import('@/types').MetricConfig): ((arr: number[]) => number) | null {
+    if (!this.env) return null;
+
+    const agentTypeId = metric.agentTypeId;
+
+    if (metric.type === 'count') {
+      // Count agents of the specified type
+      return () => {
+        if (!this.env) return 0;
+        return this.env.getAgents().filter(a => a.get('typeId') === agentTypeId).length;
+      };
+    }
+
+    if (metric.type === 'property') {
+      const { property, aggregation } = metric;
+      
+      // Get values for agents of the specified type
+      const getValues = (): number[] => {
+        if (!this.env) return [];
+        return this.env.getAgents()
+          .filter(a => a.get('typeId') === agentTypeId)
+          .map(a => a.get(property) as number)
+          .filter(v => v !== null && v !== undefined && typeof v === 'number');
+      };
+
+      switch (aggregation) {
+        case 'mean':
+          return () => {
+            const values = getValues();
+            if (values.length === 0) return 0;
+            return values.reduce((sum, v) => sum + v, 0) / values.length;
+          };
+        case 'min':
+          return () => {
+            const values = getValues();
+            if (values.length === 0) return 0;
+            return Math.min(...values);
+          };
+        case 'max':
+          return () => {
+            const values = getValues();
+            if (values.length === 0) return 0;
+            return Math.max(...values);
+          };
+        case 'sum':
+          return () => {
+            const values = getValues();
+            return values.reduce((sum, v) => sum + v, 0);
+          };
+        case 'median':
+          return () => {
+            const values = getValues().sort((a, b) => a - b);
+            if (values.length === 0) return 0;
+            const mid = Math.floor(values.length / 2);
+            return values.length % 2 === 0
+              ? (values[mid - 1] + values[mid]) / 2
+              : values[mid];
+          };
+        default:
+          return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Generate a unique key for a metric configuration
+   * This is used internally by LineChartRenderer
+   */
+  private getMetricKey(metric: import('@/types').MetricConfig): string {
+    if (metric.type === 'count') {
+      return `count:${metric.agentTypeId}`;
+    }
+    return `${metric.aggregation}:${metric.agentTypeId}:${metric.property}`;
   }
 }

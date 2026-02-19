@@ -16,6 +16,7 @@ import { loadModel } from '@/lib/api/models';
 import { Canvas } from '@/components/simulation/Canvas';
 import { Controls } from '@/components/simulation/Controls';
 import { RuntimeParameters } from '@/components/simulation/RuntimeParameters';
+import { LineChartList } from '@/components/simulation/LineChartDisplay';
 import { AuthButtons } from '@/components/auth/AuthButtons';
 import type { StudioModel } from '@/types';
 
@@ -151,10 +152,19 @@ export default function ModelViewPage({ params }: Props) {
           <Controls onReset={initializeSimulation} />
         </div>
 
-        {/* Parameters sidebar (if any parameters exist) */}
-        {modelData.parameters.length > 0 && (
-          <aside className="w-64 p-4 border-l border-gray-800 shrink-0">
-            <RuntimeParameters />
+        {/* Sidebar: Parameters + Visualizations */}
+        {(modelData.parameters.length > 0 || (modelData.visualizations?.length ?? 0) > 0) && (
+          <aside className="w-80 p-4 border-l border-gray-800 shrink-0 overflow-y-auto">
+            {modelData.parameters.length > 0 && (
+              <RuntimeParameters />
+            )}
+            
+            {modelData.visualizations && modelData.visualizations.length > 0 && (
+              <div className={modelData.parameters.length > 0 ? 'mt-6' : ''}>
+                <h3 className="text-sm font-medium text-gray-400 mb-3">Charts</h3>
+                <LineChartList visualizations={modelData.visualizations} />
+              </div>
+            )}
           </aside>
         )}
       </div>

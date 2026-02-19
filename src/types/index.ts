@@ -16,6 +16,7 @@ export interface StudioModel {
   agentTypes: AgentType[];
   populations: Population[];
   parameters: Parameter[];
+  visualizations: Visualization[];
 
   // Metadata
   tags: string[];
@@ -115,6 +116,49 @@ export interface Parameter {
   max?: number;
   step?: number;
   options?: string[];
+}
+
+// ============================================================================
+// Visualization Types
+// ============================================================================
+
+export interface Visualization {
+  id: string;
+  name: string;
+  type: 'line-chart';  // Extensible for future: 'heatmap' | 'histogram'
+  enabled: boolean;
+  
+  series: ChartSeries[];
+  
+  options: {
+    autoScale: boolean;
+    autoScroll: boolean;
+    range?: {
+      min: number;
+      max: number;
+    };
+  };
+}
+
+export interface ChartSeries {
+  id: string;
+  name: string;
+  color: string;
+  metric: MetricConfig;
+}
+
+export type MetricConfig = CountMetric | PropertyMetric;
+
+export interface CountMetric {
+  type: 'count';
+  agentTypeId: string;
+}
+
+export interface PropertyMetric {
+  type: 'property';
+  agentTypeId: string;
+  property: string;
+  aggregation: 'mean' | 'min' | 'max' | 'sum' | 'median';
 }
 
 // ============================================================================
