@@ -135,9 +135,6 @@ function compileAgentTickFunction(agentType: AgentType, model: StudioModel): (ag
 
   // Combined tick function
   return (agent: Agent) => {
-    // Skip all behaviors if agent is marked for removal
-    if (agent.get('_pendingRemoval')) return;
-    
     for (const fn of behaviorFns) {
       fn(agent);
     }
@@ -218,9 +215,6 @@ function compileBehavior(
         const env = agent.environment;
         if (!env) return;
         
-        // Skip if marked for removal
-        if (agent.get('_pendingRemoval')) return;
-        
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
         const target = findNearest(agent, targetTypeId);
@@ -247,9 +241,6 @@ function compileBehavior(
       return (agent: Agent) => {
         const env = agent.environment;
         if (!env) return;
-        
-        // Skip if marked for removal
-        if (agent.get('_pendingRemoval')) return;
         
         const x = agent.get('x') as number;
         const y = agent.get('y') as number;
@@ -442,15 +433,7 @@ function compileBehavior(
         if (!env) return;
         
         // Find colliding agent
-        // Note: We intentionally DO NOT filter out _pendingRemoval here.
-        // If a target was marked for removal by an earlier behavior on this agent,
-        // subsequent collision behaviors should still see it (same-tick consistency).
-        // The sweep happens at end of tick, so all collision events fire.
-        const neighbors = env.helpers.kdtree.agentsWithinDistance(
-          agent, 
-          radius, 
-          (a) => a.get('typeId') === targetTypeId
-        );
+        const neighbors = env.helpers.kdtree.agentsWithinDistance(agent, radius, (a) => a.get('typeId') === targetTypeId);
         if (neighbors.length === 0) {
           return;
         }
@@ -471,9 +454,6 @@ function compileBehavior(
       return (agent: Agent) => {
         const env = agent.environment;
         if (!env) return;
-        
-        // Skip if already marked for removal
-        if (agent.get('_pendingRemoval')) return;
         
         const value = agent.get(propName) as number;
         if (value === null || value === undefined) return;
@@ -512,12 +492,8 @@ function compileBehavior(
       const probability = params.probability ?? 0.01;
       
       return (agent: Agent) => {
-        // Skip if already marked for removal
-        if (agent.get('_pendingRemoval')) return;
-        
         if (utils.random(0, 1, true) < probability) {
-          // Mark for deferred removal (swept at end of tick)
-          agent.set('_pendingRemoval', true);
+          agent.environment?.removeAgent(agent);
         }
       };
     }
@@ -578,10 +554,6 @@ function compileBehavior(
 
 /**
  * Execute an action from an event behavior
- * 
- * Note: Removal actions use deferred (mark-and-sweep) deletion. Agents are marked
- * with '_pendingRemoval' and actually removed at end of tick by SimulationEngine.
- * This ensures all behaviors within a tick see consistent collision state.
  */
 function executeAction(
   agent: Agent,
@@ -592,14 +564,12 @@ function executeAction(
 ): void {
   switch (action) {
     case 'remove-self':
-      // Mark for deferred removal (swept at end of tick)
-      agent.set('_pendingRemoval', true);
+      env.removeAgent(agent);
       break;
       
     case 'remove-target':
       if (target) {
-        // Mark for deferred removal (swept at end of tick)
-        target.set('_pendingRemoval', true);
+        env.removeAgent(target);
       }
       break;
       
@@ -655,7 +625,7 @@ function resolveParam(
 // ============================================================================
 
 /**
- * Find the nearest agent of a given type (excludes agents marked for removal)
+ * Find the nearest agent of a given type
  */
 function findNearest(
   agent: Agent, 
@@ -664,10 +634,7 @@ function findNearest(
   const env = agent.environment;
   if (!env) return null;
   
-  const nearest = env.helpers.kdtree.nearestNeighbor(
-    agent, 
-    (a) => a.get('typeId') === typeId && !a.get('_pendingRemoval')
-  );
+  const nearest = env.helpers.kdtree.nearestNeighbor(agent, (a) => a.get('typeId') === typeId);
   return nearest;
 }
 

@@ -338,16 +338,6 @@ export class SimulationEngine {
     }
 
     this.env.tick();
-    
-    // Sweep phase: remove agents marked for deferred removal
-    // This ensures all behaviors within a tick see consistent state
-    const agentsAfterTick = this.env.getAgents();
-    for (const agent of agentsAfterTick) {
-      if (agent.get('_pendingRemoval')) {
-        this.env.removeAgent(agent);
-      }
-    }
-    
     this.tickCount++;
   }
 
