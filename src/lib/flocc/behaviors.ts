@@ -186,6 +186,7 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
     category: 'lifecycle',
     params: [
       { key: 'probability', name: 'Probability', type: 'number', default: 0.01, min: 0, max: 1, step: 0.01 },
+      { key: 'distance', name: 'Distance', type: 'number', default: 1, min: 0, max: 100, step: 1 },
     ],
   },
 ];

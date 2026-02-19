@@ -500,6 +500,7 @@ function compileBehavior(
 
     case 'reproduce': {
       const probability = params.probability ?? 0.01;
+      const dist = utils.random(0, params.distance ?? 1, true);
       
       return (agent: Agent) => {
         const env = agent.environment;
@@ -511,8 +512,13 @@ function compileBehavior(
           const y = agent.get('y') as number;
           
           child.set('typeId', agent.get('typeId'));
-          child.set('x', x + utils.random(-5, 5, true));
-          child.set('y', y + utils.random(-5, 5, true));
+          const angle = utils.random(0, 2 * Math.PI, true);
+          const deltaVec = {
+            x: dist * Math.cos(angle),
+            y: dist * Math.sin(angle),
+          };
+          child.set('x', x + deltaVec.x);
+          child.set('y', y + deltaVec.y);
           
           // Copy velocity if present
           const vx = agent.get('vx');
