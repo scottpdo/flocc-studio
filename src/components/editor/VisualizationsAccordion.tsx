@@ -11,6 +11,7 @@ import { nanoid } from 'nanoid';
 import { useModelStore } from '@/stores/model';
 import { Accordion } from '@/components/ui/Accordion';
 import type { Visualization } from '@/types';
+import { useEditStore } from '@/stores/edit';
 
 interface VisualizationsAccordionProps {
   selectedVisualizationId: string | null;
@@ -24,6 +25,7 @@ export function VisualizationsAccordion({
   const model = useModelStore((s) => s.model);
   const addVisualization = useModelStore((s) => s.addVisualization);
   const removeVisualization = useModelStore((s) => s.removeVisualization);
+  const { activeAccordion, setActiveAccordion } = useEditStore();
 
   if (!model) return null;
 
@@ -69,7 +71,6 @@ export function VisualizationsAccordion({
   return (
     <Accordion
       title="Visualizations"
-      defaultOpen={true}
       badge={visualizations.length}
       action={
         <button

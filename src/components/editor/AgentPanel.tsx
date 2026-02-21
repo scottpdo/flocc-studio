@@ -12,6 +12,7 @@ import { nanoid } from 'nanoid';
 import { useModelStore } from '@/stores/model';
 import { Accordion } from '@/components/ui/Accordion';
 import type { AgentType, Population } from '@/types';
+import { useEditStore } from '@/stores/edit';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -28,6 +29,8 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
   const addPopulation = useModelStore((s) => s.addPopulation);
   const updatePopulation = useModelStore((s) => s.updatePopulation);
   const removePopulation = useModelStore((s) => s.removePopulation);
+
+  const { activeAccordion, setActiveAccordion } = useEditStore();
 
   // Track which agent name is being edited
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -78,8 +81,7 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
 
   return (
     <Accordion 
-      title="Agent Types" 
-      defaultOpen={true}
+      title="Agent Types"
       badge={model.agentTypes.length}
       action={addButton}
     >

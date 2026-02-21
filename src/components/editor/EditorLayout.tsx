@@ -25,6 +25,7 @@ import { ModelSettingsDropdown } from './ModelSettingsDropdown';
 import { Canvas } from '@/components/simulation/Canvas';
 import { Controls } from '@/components/simulation/Controls';
 import { LineChartList } from '@/components/simulation/LineChartDisplay';
+import { useEditStore } from '@/stores/edit';
 
 interface EditorLayoutProps {
   modelId: string;
@@ -39,6 +40,8 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
   const markClean = useModelStore((s) => s.markClean);
   const updateName = useModelStore((s) => s.updateName);
   const setModel = useModelStore((s) => s.setModel);
+
+  const activeAccordion = useEditStore((s) => s.activeAccordion);
 
   const canUndo = useCanUndo();
   const canRedo = useCanRedo();
@@ -138,7 +141,7 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
 
   if (!model) return null;
 
-  const sidePanelOpen = selectedAgentId !== null || selectedVisualizationId !== null;
+  const sidePanelOpen = (activeAccordion === 'Agent Types' && selectedAgentId) || (activeAccordion === 'Visualizations' && selectedVisualizationId);
 
   return (
     <div className="h-screen bg-gray-950 text-white flex flex-col">

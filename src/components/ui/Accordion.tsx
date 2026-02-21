@@ -1,16 +1,16 @@
 'use client';
 
+import { useEditStore } from '@/stores/edit';
 /**
  * Accordion
  * 
  * A collapsible section with a header and expandable content.
  */
 
-import { useState, useCallback, ReactNode } from 'react';
+import { useState, useCallback, ReactNode, useEffect } from 'react';
 
 interface AccordionProps {
   title: string;
-  defaultOpen?: boolean;
   children: ReactNode;
   /** Optional action button in the header */
   action?: ReactNode;
@@ -19,15 +19,22 @@ interface AccordionProps {
 }
 
 export function Accordion({ 
-  title, 
-  defaultOpen = false, 
-  children, 
+  title,
+  children,
   action,
-  badge 
+  badge,
 }: AccordionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, setIsOpen] = useState(false);
+  const { activeAccordion, setActiveAccordion } = useEditStore();
 
-  const toggle = useCallback(() => setIsOpen((o) => !o), []);
+  const toggle = useCallback(() => {
+    setIsOpen(!isOpen);
+    setActiveAccordion(!isOpen ? title : null);
+  }, [isOpen]);
+
+  useEffect(() => {
+    setIsOpen(activeAccordion === title);
+  }, [activeAccordion]);
 
   return (
     <div className="border-b border-gray-800">
