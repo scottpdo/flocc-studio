@@ -269,29 +269,36 @@ const diseaseSpread: StudioModel = {
 // Insert
 // ============================================================================
 
-const seedModels = [flocking, predatorPrey, diseaseSpread];
+async function main() {
+  const seedModels = [flocking, predatorPrey, diseaseSpread];
 
-console.log('Seeding featured models...');
+  console.log('Seeding featured models...');
 
-for (const model of seedModels) {
-  await db
-    .insert(models)
-    .values({
-      id: model.id,
-      name: model.name,
-      description: model.description,
-      definition: model,
-      isPublic: true,
-      isFeatured: true,
-      forkCount: 0,
-      viewCount: 0,
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing();
+  for (const model of seedModels) {
+    await db
+      .insert(models)
+      .values({
+        id: model.id,
+        name: model.name,
+        description: model.description,
+        definition: model,
+        isPublic: true,
+        isFeatured: true,
+        forkCount: 0,
+        viewCount: 0,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
 
-  console.log(`  ✓ ${model.name}`);
+    console.log(`  ✓ ${model.name}`);
+  }
+
+  console.log('Done.');
 }
 
-console.log('Done.');
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
