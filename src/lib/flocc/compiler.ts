@@ -124,10 +124,26 @@ export function compileModel(model: StudioModel): CompiledModel {
 // Terrain Compilation
 // ============================================================================
 
+interface Pixel { r: number; g: number; b: number; a: number }
+
+function hexToPixel(hex: string): Pixel {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+    a: 255,
+  };
+}
+
 function compileTerrainSetup(
   config: TerrainConfig,
   envConfig: { width: number; height: number }
 ): (env: Environment) => Terrain {
+  // Resolve colors once at compile time (not per cell tick)
+  const pixelLow = hexToPixel(config.colorLow ?? '#000000');
+  const pixelHigh = hexToPixel(config.colorHigh ?? '#ffffff');
+
   return (env: Environment) => {
     const scale = config.scale || 1;
     const gridW = Math.floor(envConfig.width / scale);
@@ -150,14 +166,20 @@ function compileTerrainSetup(
         }
       } else {
         switch (config.initRule) {
-          case 'uniform-white': return Colors.WHITE;
-          case 'random-bw': return utils.random(0, 1, true) > 0.5 ? Colors.WHITE : Colors.BLACK;
+          case 'uniform-white': return { ...pixelHigh };
+          case 'random-bw': return utils.random(0, 1, true) > 0.5 ? { ...pixelHigh } : { ...pixelLow };
           case 'random-gray': {
-            const v = Math.floor(utils.random(0, 255, true));
-            return { r: v, g: v, b: v, a: 255 };
+            // Random interpolation between colorLow and colorHigh
+            const t = utils.random(0, 1, true);
+            return {
+              r: Math.round(pixelLow.r + t * (pixelHigh.r - pixelLow.r)),
+              g: Math.round(pixelLow.g + t * (pixelHigh.g - pixelLow.g)),
+              b: Math.round(pixelLow.b + t * (pixelHigh.b - pixelLow.b)),
+              a: 255,
+            };
           }
           case 'uniform-black':
-          default: return Colors.BLACK;
+          default: return { ...pixelLow };
         }
       }
     });
@@ -166,10 +188,10 @@ function compileTerrainSetup(
     if (config.updateRule !== 'none') {
       terrain.addRule((x: number, y: number) => {
         if (config.updateRule === 'game-of-life') {
-          return compileGameOfLife(terrain, config.grayscale, x, y);
+          return applyGameOfLife(terrain, config.grayscale, x, y, pixelLow, pixelHigh);
         }
         if (config.updateRule === 'diffusion') {
-          return compileDiffusion(terrain, config.grayscale, x, y);
+          return applyDiffusion(terrain, config.grayscale, x, y);
         }
       });
     }
@@ -179,21 +201,23 @@ function compileTerrainSetup(
   };
 }
 
-interface Pixel { r: number; g: number; b: number; a: number }
-
-function compileGameOfLife(
-  terrain: Terrain, grayscale: boolean, x: number, y: number
+function applyGameOfLife(
+  terrain: Terrain, grayscale: boolean, x: number, y: number,
+  pixelLow: Pixel, pixelHigh: Pixel,
 ): number | Pixel | undefined {
-  const ALIVE = grayscale ? 255 : Colors.WHITE;
-  const DEAD = grayscale ? 0 : Colors.BLACK;
+  const ALIVE: number | Pixel = grayscale ? 255 : { ...pixelHigh };
+  const DEAD: number | Pixel = grayscale ? 0 : { ...pixelLow };
 
   const self = terrain.sample(x, y);
   const isAlive = grayscale
     ? (self as number) === 255
-    : (self as Pixel).r === 255;
+    : (self as Pixel).r === pixelHigh.r && (self as Pixel).g === pixelHigh.g && (self as Pixel).b === pixelHigh.b;
+
   const neighbors = terrain.neighbors(x, y, 1, true);
   const living = neighbors.filter((n: number | Pixel) =>
-    grayscale ? n === 255 : (n as Pixel).r === 255
+    grayscale
+      ? n === 255
+      : (n as Pixel).r === pixelHigh.r && (n as Pixel).g === pixelHigh.g && (n as Pixel).b === pixelHigh.b
   ).length;
 
   if (isAlive && (living < 2 || living > 3)) return DEAD;
@@ -201,7 +225,7 @@ function compileGameOfLife(
   return undefined;
 }
 
-function compileDiffusion(
+function applyDiffusion(
   terrain: Terrain, grayscale: boolean, x: number, y: number
 ): number | Pixel {
   const neighbors = terrain.neighbors(x, y, 1, false); // Von Neumann

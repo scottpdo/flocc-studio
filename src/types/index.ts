@@ -59,6 +59,10 @@ export interface TerrainConfig {
   scale: number;
   initRule: TerrainInitRule;
   updateRule: TerrainUpdateRule;
+  /** Hex color for the low/dead state (used when grayscale is false) */
+  colorLow?: string;
+  /** Hex color for the high/alive state (used when grayscale is false) */
+  colorHigh?: string;
 }
 
 export interface AgentType {
