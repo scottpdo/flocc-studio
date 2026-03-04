@@ -13,6 +13,7 @@ export interface StudioModel {
   description?: string;
 
   environment: EnvironmentConfig;
+  terrain?: TerrainConfig;
   agentTypes: AgentType[];
   populations: Population[];
   parameters: Parameter[];
@@ -43,6 +44,21 @@ export interface EnvironmentConfig {
   height: number;
   wraparound: boolean;
   backgroundColor?: string;
+}
+
+// ============================================================================
+// Terrain Types
+// ============================================================================
+
+export type TerrainInitRule = 'uniform-black' | 'uniform-white' | 'random-bw' | 'random-gray';
+export type TerrainUpdateRule = 'none' | 'game-of-life' | 'diffusion';
+
+export interface TerrainConfig {
+  enabled: boolean;
+  grayscale: boolean;
+  scale: number;
+  initRule: TerrainInitRule;
+  updateRule: TerrainUpdateRule;
 }
 
 export interface AgentType {

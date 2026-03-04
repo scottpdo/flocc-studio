@@ -5,7 +5,7 @@
  * Manages the Environment, rendering, and animation loop.
  */
 
-import { Environment, Agent, CanvasRenderer, LineChartRenderer, utils, KDTree } from 'flocc';
+import { Environment, Agent, CanvasRenderer, LineChartRenderer, Terrain, utils, KDTree } from 'flocc';
 import type { StudioModel, AgentType, Parameter, Visualization } from '@/types';
 
 // ============================================================================
@@ -41,6 +41,7 @@ export class SimulationEngine {
   private agentIdCounter: number = 0;
   private agentTypeMetadata: Map<string, AgentTypeMetadata> = new Map();
   private setupFn: ((env: Environment) => void) | null = null;
+  private terrainSetupFn: ((env: Environment) => Terrain) | null = null;
   private parameters: Parameter[] = [];
   private visualizations: Visualization[] = [];
   private chartRenderers: Map<string, LineChartRenderer> = new Map();
@@ -62,13 +63,15 @@ export class SimulationEngine {
     agentTypes: Map<string, AgentTypeMetadata>,
     envConfig: { width: number; height: number; wraparound: boolean; backgroundColor?: string },
     parameters: Parameter[] = [],
-    visualizations: Visualization[] = []
+    visualizations: Visualization[] = [],
+    terrainSetup: ((env: Environment) => Terrain) | null = null
   ): void {
     this.cleanup();
 
     try {
-      // Store setup function for reset
+      // Store setup functions for reset
       this.setupFn = setupFn;
+      this.terrainSetupFn = terrainSetup;
       this.agentTypeMetadata = agentTypes;
       this.parameters = parameters;
 
@@ -93,6 +96,11 @@ export class SimulationEngine {
       for (const agent of this.env.getAgents()) {
         agent.set('_id', `agent_${this.agentIdCounter++}`);
         this.applyAgentVisuals(agent);
+      }
+
+      // Set up terrain if configured
+      if (terrainSetup) {
+        terrainSetup(this.env);
       }
 
       this.env.use(new KDTree(this.env.getAgents()));
@@ -195,6 +203,11 @@ export class SimulationEngine {
 
     // Re-sync parameters (they may have changed)
     this.syncParametersToEnv();
+
+    // Re-setup terrain
+    if (this.terrainSetupFn) {
+      this.terrainSetupFn(this.env);
+    }
 
     // Re-run setup
     this.setupFn(this.env);

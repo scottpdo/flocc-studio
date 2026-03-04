@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import { nanoid } from 'nanoid';
-import type { StudioModel, AgentType, Behavior, Population, Parameter, Visualization, ChartSeries } from '@/types';
+import type { StudioModel, AgentType, Behavior, Population, Parameter, Visualization, ChartSeries, TerrainConfig } from '@/types';
 
 // ============================================================================
 // Default Model
@@ -61,6 +61,9 @@ interface ModelActions {
   updateEnvironment: (env: Partial<StudioModel['environment']>) => void;
   /** Update isPublic without marking the model dirty (saved immediately via API) */
   setIsPublic: (isPublic: boolean) => void;
+
+  // Terrain
+  updateTerrain: (terrain: Partial<TerrainConfig>) => void;
 
   // Agent types
   addAgentType: (agentType: AgentType) => void;
@@ -158,6 +161,22 @@ export const useModelStore = create<ModelStore>()(
           if (state.model) {
             state.model.isPublic = isPublic;
             // intentionally NOT setting isDirty — this is persisted immediately
+          }
+        }),
+
+      // Terrain
+      updateTerrain: (terrain) =>
+        set((state) => {
+          if (state.model) {
+            const current = state.model.terrain ?? {
+              enabled: false,
+              grayscale: true,
+              scale: 1,
+              initRule: 'uniform-black' as const,
+              updateRule: 'none' as const,
+            };
+            state.model.terrain = { ...current, ...terrain };
+            state.isDirty = true;
           }
         }),
 

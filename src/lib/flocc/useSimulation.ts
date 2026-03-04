@@ -36,11 +36,12 @@ export function useSimulation() {
   // Compute a hash of model structure (excluding parameters) to detect structural changes
   const getStructureHash = useCallback(() => {
     if (!model) return null;
-    // Hash based on agent types, populations, environment, and visualizations - NOT parameters
+    // Hash based on agent types, populations, environment, terrain, and visualizations - NOT parameters
     return JSON.stringify({
       agentTypes: model.agentTypes,
       populations: model.populations,
       environment: model.environment,
+      terrain: model.terrain,
       visualizations: model.visualizations,
     });
   }, [model]);
@@ -50,8 +51,10 @@ export function useSimulation() {
     const container = containerRef.current;
     if (!container || !model) return;
 
-    // Only initialize if we have agent types and populations
-    if (model.agentTypes.length === 0 || model.populations.length === 0) {
+    // Only initialize if we have agents or terrain
+    const hasAgents = model.agentTypes.length > 0 && model.populations.length > 0;
+    const hasTerrain = model.terrain?.enabled;
+    if (!hasAgents && !hasTerrain) {
       return;
     }
 
@@ -73,13 +76,14 @@ export function useSimulation() {
         setEngine(engineRef.current);
       }
 
-      // Initialize with compiled model, parameters, and visualizations
+      // Initialize with compiled model, parameters, visualizations, and terrain
       engineRef.current.initialize(
         compiled.setup,
         compiled.agentTypes,
         compiled.envConfig,
         model.parameters,
-        model.visualizations ?? []
+        model.visualizations ?? [],
+        compiled.terrainSetup
       );
 
       // Apply current speed setting
@@ -124,7 +128,7 @@ export function useSimulation() {
     }, 100);
     
     return () => clearTimeout(timeout);
-  }, [model?.agentTypes, model?.populations, model?.environment, getStructureHash, initializeSimulation]);
+  }, [model?.agentTypes, model?.populations, model?.environment, model?.terrain, getStructureHash, initializeSimulation]);
 
   // Cleanup on unmount
   useEffect(() => {

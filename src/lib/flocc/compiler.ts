@@ -5,8 +5,8 @@
  * Generates a setup function and metadata for the SimulationEngine.
  */
 
-import { Environment, Agent, utils } from 'flocc';
-import type { StudioModel, AgentType, Behavior } from '@/types';
+import { Environment, Agent, Terrain, Colors, utils } from 'flocc';
+import type { StudioModel, AgentType, Behavior, TerrainConfig } from '@/types';
 import type { AgentTypeMetadata } from './SimulationEngine';
 
 // ============================================================================
@@ -22,6 +22,7 @@ export interface CompiledModel {
     wraparound: boolean;
     backgroundColor?: string;
   };
+  terrainSetup: ((env: Environment) => Terrain) | null;
 }
 
 // ============================================================================
@@ -111,7 +112,117 @@ export function compileModel(model: StudioModel): CompiledModel {
     }
   };
 
-  return { setup, agentTypes, envConfig };
+  // Compile terrain setup if enabled
+  const terrainSetup = model.terrain?.enabled
+    ? compileTerrainSetup(model.terrain, envConfig)
+    : null;
+
+  return { setup, agentTypes, envConfig, terrainSetup };
+}
+
+// ============================================================================
+// Terrain Compilation
+// ============================================================================
+
+function compileTerrainSetup(
+  config: TerrainConfig,
+  envConfig: { width: number; height: number }
+): (env: Environment) => Terrain {
+  return (env: Environment) => {
+    const scale = config.scale || 1;
+    const gridW = Math.floor(envConfig.width / scale);
+    const gridH = Math.floor(envConfig.height / scale);
+
+    const terrain = new Terrain(gridW, gridH, {
+      grayscale: config.grayscale,
+      scale,
+    });
+
+    // Init rule
+    terrain.init((_x: number, _y: number) => {
+      if (config.grayscale) {
+        switch (config.initRule) {
+          case 'uniform-white': return 255;
+          case 'random-bw': return utils.random(0, 1, true) > 0.5 ? 255 : 0;
+          case 'random-gray': return Math.floor(utils.random(0, 255, true));
+          case 'uniform-black':
+          default: return 0;
+        }
+      } else {
+        switch (config.initRule) {
+          case 'uniform-white': return Colors.WHITE;
+          case 'random-bw': return utils.random(0, 1, true) > 0.5 ? Colors.WHITE : Colors.BLACK;
+          case 'random-gray': {
+            const v = Math.floor(utils.random(0, 255, true));
+            return { r: v, g: v, b: v, a: 255 };
+          }
+          case 'uniform-black':
+          default: return Colors.BLACK;
+        }
+      }
+    });
+
+    // Update rule
+    if (config.updateRule !== 'none') {
+      terrain.addRule((x: number, y: number) => {
+        if (config.updateRule === 'game-of-life') {
+          return compileGameOfLife(terrain, config.grayscale, x, y);
+        }
+        if (config.updateRule === 'diffusion') {
+          return compileDiffusion(terrain, config.grayscale, x, y);
+        }
+      });
+    }
+
+    env.use(terrain);
+    return terrain;
+  };
+}
+
+interface Pixel { r: number; g: number; b: number; a: number }
+
+function compileGameOfLife(
+  terrain: Terrain, grayscale: boolean, x: number, y: number
+): number | Pixel | undefined {
+  const ALIVE = grayscale ? 255 : Colors.WHITE;
+  const DEAD = grayscale ? 0 : Colors.BLACK;
+
+  const self = terrain.sample(x, y);
+  const isAlive = grayscale
+    ? (self as number) === 255
+    : (self as Pixel).r === 255;
+  const neighbors = terrain.neighbors(x, y, 1, true);
+  const living = neighbors.filter((n: number | Pixel) =>
+    grayscale ? n === 255 : (n as Pixel).r === 255
+  ).length;
+
+  if (isAlive && (living < 2 || living > 3)) return DEAD;
+  if (!isAlive && living === 3) return ALIVE;
+  return undefined;
+}
+
+function compileDiffusion(
+  terrain: Terrain, grayscale: boolean, x: number, y: number
+): number | Pixel {
+  const neighbors = terrain.neighbors(x, y, 1, false); // Von Neumann
+  if (grayscale) {
+    const self = terrain.sample(x, y) as number;
+    const avg = (neighbors as number[]).reduce((s, v) => s + v, 0) / neighbors.length;
+    return Math.round(self * 0.8 + avg * 0.2);
+  } else {
+    const self = terrain.sample(x, y) as Pixel;
+    const count = neighbors.length;
+    let rSum = 0, gSum = 0, bSum = 0;
+    for (const n of neighbors as Pixel[]) {
+      rSum += n.r; gSum += n.g; bSum += n.b;
+    }
+    return {
+      r: Math.round(self.r * 0.8 + (rSum / count) * 0.2),
+      g: Math.round(self.g * 0.8 + (gSum / count) * 0.2),
+      b: Math.round(self.b * 0.8 + (bSum / count) * 0.2),
+      a: 255,
+    };
+  }
 }
 
 // ============================================================================

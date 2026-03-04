@@ -18,6 +18,7 @@ import { saveModel } from '@/lib/api/models';
 import { AgentPanel } from './AgentPanel';
 import { ParametersAccordion } from './ParametersAccordion';
 import { EnvironmentAccordion } from './EnvironmentAccordion';
+import { TerrainAccordion } from './TerrainAccordion';
 import { VisualizationsAccordion } from './VisualizationsAccordion';
 import { PropertyPanel } from './PropertyPanel';
 import { VisualizationPanel } from './VisualizationPanel';
@@ -227,6 +228,7 @@ export function EditorLayout({ modelId }: EditorLayoutProps) {
               selectedVisualizationId={selectedVisualizationId}
               onSelectVisualization={handleSelectVisualization}
             />
+            <TerrainAccordion />
             <EnvironmentAccordion />
           </div>
 
