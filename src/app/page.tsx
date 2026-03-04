@@ -1,7 +1,24 @@
 import Link from 'next/link';
+import { eq, and } from 'drizzle-orm';
 import { AuthButtons } from '@/components/auth/AuthButtons';
+import { ModelCard } from '@/components/models/ModelCard';
+import { db, schema } from '@/lib/db/client';
+import type { StudioModel } from '@/types';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const rows = await db
+    .select()
+    .from(schema.models)
+    .where(and(eq(schema.models.isFeatured, true), eq(schema.models.isPublic, true)))
+    .limit(3);
+
+  const featuredModels: StudioModel[] = rows.map((row) => ({
+    ...row.definition,
+    id: row.id,
+    userId: row.userId ?? undefined,
+    isPublic: row.isPublic ?? false,
+    isFeatured: row.isFeatured ?? false,
+  }));
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-950 text-white">
       {/* Header */}
@@ -55,24 +72,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Models Preview */}
+      {/* Featured Models */}
       <section className="max-w-7xl mx-auto px-4 py-16">
         <h2 className="text-2xl font-bold mb-8">Featured Models</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Placeholder cards */}
-          {['Flocking', 'Schelling Segregation', 'Predator-Prey'].map((name) => (
-            <div
-              key={name}
-              className="bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition cursor-pointer"
-            >
-              <div className="aspect-video bg-gray-700 rounded mb-4 flex items-center justify-center text-gray-500">
-                Preview
-              </div>
-              <h3 className="font-semibold mb-1">{name}</h3>
-              <p className="text-sm text-gray-400">Classic ABM example</p>
-            </div>
-          ))}
-        </div>
+        {featuredModels.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {featuredModels.map((model) => (
+              <ModelCard key={model.id} model={model} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500">No featured models yet — check back soon!</p>
+        )}
       </section>
 
       {/* Footer */}
