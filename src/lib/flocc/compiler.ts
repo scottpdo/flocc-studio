@@ -126,6 +126,11 @@ export function compileModel(model: StudioModel): CompiledModel {
 
 interface Pixel { r: number; g: number; b: number; a: number }
 
+/** Perceptual luminance of a pixel, in the range 0-255. */
+function luminance(p: Pixel): number {
+  return Math.round(0.299 * p.r + 0.587 * p.g + 0.114 * p.b);
+}
+
 function hexToPixel(hex: string): Pixel {
   const h = hex.replace('#', '');
   return {
@@ -675,6 +680,83 @@ function compileBehavior(
           
           env.addAgent(child);
         }
+      };
+    }
+
+    case 'on-terrain': {
+      const condition = params.condition ?? 'gt';
+      const threshold = params.threshold ?? 128;
+      const action = params.action ?? 'remove-self';
+      // Capture terrain config at compile time
+      const terrainScale = model.terrain?.scale ?? 1;
+      const terrainGrayscale = model.terrain?.grayscale ?? true;
+
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        const terrain = (env as any).helpers?.terrain as Terrain | undefined;
+        if (!terrain) return;
+
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        const gx = Math.floor(x / terrainScale);
+        const gy = Math.floor(y / terrainScale);
+
+        const raw = terrain.sample(gx, gy);
+        const value = terrainGrayscale
+          ? (raw as number)
+          : luminance(raw as Pixel);
+
+        let conditionMet = false;
+        switch (condition) {
+          case 'eq':  conditionMet = value === threshold; break;
+          case 'neq': conditionMet = value !== threshold; break;
+          case 'lt':  conditionMet = value < threshold;   break;
+          case 'lte': conditionMet = value <= threshold;  break;
+          case 'gt':  conditionMet = value > threshold;   break;
+          case 'gte': conditionMet = value >= threshold;  break;
+        }
+
+        if (!conditionMet) return;
+        executeAction(agent, null, action, params, env);
+      };
+    }
+
+    case 'modify-terrain': {
+      const writeMode = (params.value as 'low' | 'high' | 'toggle') ?? 'high';
+      const terrainScale = model.terrain?.scale ?? 1;
+      const terrainGrayscale = model.terrain?.grayscale ?? true;
+      // Resolve low/high values once at compile time
+      const lowValue: number | Pixel = terrainGrayscale
+        ? 0
+        : hexToPixel(model.terrain?.colorLow ?? '#000000');
+      const highValue: number | Pixel = terrainGrayscale
+        ? 255
+        : hexToPixel(model.terrain?.colorHigh ?? '#ffffff');
+
+      return (agent: Agent) => {
+        const env = agent.environment;
+        if (!env) return;
+        const terrain = (env as any).helpers?.terrain as Terrain | undefined;
+        if (!terrain) return;
+
+        const x = agent.get('x') as number;
+        const y = agent.get('y') as number;
+        const gx = Math.floor(x / terrainScale);
+        const gy = Math.floor(y / terrainScale);
+
+        let writeValue: number | Pixel;
+        if (writeMode === 'toggle') {
+          const current = terrain.sample(gx, gy);
+          const currentNum = terrainGrayscale
+            ? (current as number)
+            : luminance(current as Pixel);
+          writeValue = currentNum > 127 ? lowValue : highValue;
+        } else {
+          writeValue = writeMode === 'high' ? highValue : lowValue;
+        }
+
+        terrain.set(gx, gy, writeValue as number);
       };
     }
 

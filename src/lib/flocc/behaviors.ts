@@ -22,11 +22,13 @@ export interface BehaviorDef {
 export interface ParamDef {
   key: string;
   name: string;
-  type: 'number' | 'agentType' | 'boolean' | 'action' | 'condition' | 'property';
+  type: 'number' | 'agentType' | 'boolean' | 'action' | 'condition' | 'property' | 'select';
   default: any;
   min?: number;
   max?: number;
   step?: number;
+  /** For type: 'select' — list of options to show in the dropdown */
+  options?: { value: string; label: string }[];
   // For conditional params that only show based on another param's value
   showWhen?: { param: string; value: any };
 }
@@ -158,7 +160,24 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
       { key: 'incrementAmount', name: 'Amount', type: 'number', default: 1, step: 0.1, showWhen: { param: 'action', value: 'increment-property' } },
     ],
   },
-  
+  {
+    type: 'on-terrain',
+    name: 'On Terrain',
+    description: 'Trigger an action when the terrain value at this position meets a condition',
+    category: 'events',
+    params: [
+      { key: 'condition', name: 'Condition', type: 'condition', default: 'gt' },
+      { key: 'threshold', name: 'Threshold', type: 'number', default: 128, min: 0, max: 255, step: 1 },
+      { key: 'action', name: 'Action', type: 'action', default: 'remove-self' },
+      // Params for set-property action
+      { key: 'setProperty', name: 'Property', type: 'property', default: null, showWhen: { param: 'action', value: 'set-property' } },
+      { key: 'setValue', name: 'Value', type: 'number', default: 0, showWhen: { param: 'action', value: 'set-property' } },
+      // Params for increment-property action
+      { key: 'incrementProperty', name: 'Property', type: 'property', default: null, showWhen: { param: 'action', value: 'increment-property' } },
+      { key: 'incrementAmount', name: 'Amount', type: 'number', default: 1, step: 0.1, showWhen: { param: 'action', value: 'increment-property' } },
+    ],
+  },
+
   // Lifecycle behaviors
   {
     type: 'increment-property',
@@ -187,6 +206,25 @@ export const BEHAVIOR_LIBRARY: BehaviorDef[] = [
     params: [
       { key: 'probability', name: 'Probability', type: 'number', default: 0.01, min: 0, max: 1, step: 0.01 },
       { key: 'distance', name: 'Distance', type: 'number', default: 1, min: 0, max: 100, step: 1 },
+    ],
+  },
+  {
+    type: 'modify-terrain',
+    name: 'Modify Terrain',
+    description: "Write a value to the terrain cell under this agent's position",
+    category: 'lifecycle',
+    params: [
+      {
+        key: 'value',
+        name: 'Write',
+        type: 'select',
+        default: 'high',
+        options: [
+          { value: 'high',   label: 'High (alive)' },
+          { value: 'low',    label: 'Low (dead)'   },
+          { value: 'toggle', label: 'Toggle'       },
+        ],
+      },
     ],
   },
 ];

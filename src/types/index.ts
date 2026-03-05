@@ -103,9 +103,11 @@ export type BehaviorType =
   | 'cohere'
   | 'on-collision'
   | 'on-property'
+  | 'on-terrain'
   | 'increment-property'
   | 'die'
-  | 'reproduce';
+  | 'reproduce'
+  | 'modify-terrain';
 
 // Action types for event-triggered behaviors
 export type BehaviorAction =

@@ -8,9 +8,9 @@
 
 import { nanoid } from 'nanoid';
 import { useModelStore } from '@/stores/model';
-import { 
-  BEHAVIOR_LIBRARY, 
-  getBehaviorDef, 
+import {
+  BEHAVIOR_LIBRARY,
+  getBehaviorDef,
   createBehavior,
   ACTION_OPTIONS,
   CONDITION_OPTIONS,
@@ -232,6 +232,20 @@ function BehaviorCard({ behavior, agentType, allAgentTypes, onUpdate, onRemove }
                 {agentType.properties.map((prop) => (
                   <option key={prop.id} value={prop.name}>
                     {prop.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {param.type === 'select' && param.options && (
+              <select
+                value={behavior.params[param.key] ?? param.default}
+                onChange={(e) => updateParam(param.key, e.target.value)}
+                className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+              >
+                {param.options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
