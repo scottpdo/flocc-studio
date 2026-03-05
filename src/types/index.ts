@@ -119,14 +119,31 @@ export type BehaviorAction =
 export interface Population {
   id: string;
   agentTypeId: string;
+  distribution: 'random' | 'grid-fill' | 'cluster';
   count: number;
-  distribution: 'random' | 'grid' | 'cluster' | 'custom';
+
+  // 'random': optional sub-region constraint
   region?: {
     x: number;
     y: number;
     width: number;
     height: number;
   };
+
+  // 'grid-fill': place agents at terrain cell centers
+  // density (0–1) takes priority over count when set
+  density?: number;
+
+  // 'grid-fill' + 'random': only place on cells matching a terrain value condition
+  terrainFilter?: {
+    comparison: 'gt' | 'lt' | 'gte' | 'lte' | 'eq';
+    threshold: number; // 0–255
+  };
+
+  // 'cluster': agents grouped near a center point
+  clusterX?: number;      // 0–1 relative to env width
+  clusterY?: number;      // 0–1 relative to env height
+  clusterRadius?: number; // pixels
 }
 
 export interface Parameter {

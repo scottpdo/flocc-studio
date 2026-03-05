@@ -89,18 +89,18 @@ export class SimulationEngine {
       // Store parameters on the environment for runtime access
       this.syncParametersToEnv();
 
-      // Run setup to create agents
+      // Set up terrain FIRST so terrainFilter placement can sample cell values
+      if (terrainSetup) {
+        terrainSetup(this.env);
+      }
+
+      // Run setup to create agents (may sample terrain for placement)
       setupFn(this.env);
 
       // Assign IDs and apply visual properties to agents
       for (const agent of this.env.getAgents()) {
         agent.set('_id', `agent_${this.agentIdCounter++}`);
         this.applyAgentVisuals(agent);
-      }
-
-      // Set up terrain if configured
-      if (terrainSetup) {
-        terrainSetup(this.env);
       }
 
       this.env.use(new KDTree(this.env.getAgents()));
@@ -204,12 +204,12 @@ export class SimulationEngine {
     // Re-sync parameters (they may have changed)
     this.syncParametersToEnv();
 
-    // Re-setup terrain
+    // Terrain first (agent placement may depend on terrain values)
     if (this.terrainSetupFn) {
       this.terrainSetupFn(this.env);
     }
 
-    // Re-run setup
+    // Re-run setup (agent placement)
     this.setupFn(this.env);
 
     // Assign IDs and visuals

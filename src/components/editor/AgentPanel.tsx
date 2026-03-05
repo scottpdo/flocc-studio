@@ -11,7 +11,7 @@ import { useState, useRef, useEffect } from 'react';
 import { nanoid } from 'nanoid';
 import { useModelStore } from '@/stores/model';
 import { Accordion } from '@/components/ui/Accordion';
-import type { AgentType, Population } from '@/types';
+import type { AgentType, Population, StudioModel } from '@/types';
 import { useEditStore } from '@/stores/edit';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
@@ -55,8 +55,8 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
     const newPop: Population = {
       id: popId,
       agentTypeId: id,
-      count: 20,
       distribution: 'random',
+      count: 20,
     };
     addPopulation(newPop);
 
@@ -123,7 +123,10 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
                         onChange={(name) => updateAgentType(agent.id, { name })}
                       />
                       <div className="text-xs text-gray-500">
-                        {pop?.count ?? 0} agents · {agent.behaviors.length} behavior
+                        {pop?.distribution === 'grid-fill' && pop.density !== undefined
+                          ? `${Math.round(pop.density * 100)}% fill`
+                          : `${pop?.count ?? 0} agents`}
+                        {' · '}{agent.behaviors.length} behavior
                         {agent.behaviors.length !== 1 ? 's' : ''}
                       </div>
                     </div>
@@ -141,23 +144,14 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
                     </button>
                   </div>
 
-                  {/* Quick population edit */}
+                  {/* Population editor */}
                   {isSelected && pop && (
-                    <div className="mt-3 pt-3 border-t border-gray-700">
-                      <label className="flex items-center gap-2 text-sm">
-                        <span className="text-gray-400">Count:</span>
-                        <input
-                          type="number"
-                          value={pop.count}
-                          onChange={(e) =>
-                            updatePopulation(pop.id, { count: parseInt(e.target.value) || 0 })
-                          }
-                          min={0}
-                          max={1000}
-                          className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </label>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <PopulationEditor
+                        pop={pop}
+                        model={model}
+                        onChange={(changes) => updatePopulation(pop.id, changes)}
+                      />
                     </div>
                   )}
                 </div>
@@ -182,6 +176,215 @@ export function AgentPanel({ selectedAgentId, onSelectAgent }: AgentPanelProps) 
         )}
       </div>
     </Accordion>
+  );
+}
+
+// ============================================================================
+// PopulationEditor
+// ============================================================================
+
+interface PopulationEditorProps {
+  pop: Population;
+  model: StudioModel;
+  onChange: (changes: Partial<Population>) => void;
+}
+
+function PopulationEditor({ pop, model, onChange }: PopulationEditorProps) {
+  const terrainEnabled = model.terrain?.enabled ?? false;
+  const dist = pop.distribution ?? 'random';
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-700 space-y-2 text-sm">
+      {/* Distribution selector */}
+      <div className="flex items-center gap-2">
+        <span className="text-gray-400 w-20 shrink-0">Placement</span>
+        <select
+          value={dist}
+          onChange={(e) => onChange({ distribution: e.target.value as Population['distribution'] })}
+          className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+        >
+          <option value="random">Random</option>
+          <option value="grid-fill">Grid Fill</option>
+          <option value="cluster">Cluster</option>
+        </select>
+      </div>
+
+      {/* --- Random --- */}
+      {dist === 'random' && (
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 w-20 shrink-0">Count</span>
+          <input
+            type="number"
+            value={pop.count}
+            onChange={(e) => onChange({ count: parseInt(e.target.value) || 0 })}
+            min={0}
+            max={5000}
+            className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+          />
+        </div>
+      )}
+
+      {/* --- Grid Fill --- */}
+      {dist === 'grid-fill' && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-20 shrink-0">Density</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round((pop.density ?? 1) * 100)}
+              onChange={(e) =>
+                onChange({ density: parseInt(e.target.value) / 100 })
+              }
+              className="flex-1 accent-blue-500"
+            />
+            <span className="text-xs text-gray-400 w-8 text-right">
+              {Math.round((pop.density ?? 1) * 100)}%
+            </span>
+          </div>
+          {/* Terrain filter — only show when terrain is enabled */}
+          {terrainEnabled && (
+            <TerrainFilterEditor
+              filter={pop.terrainFilter}
+              onChange={(f) => onChange({ terrainFilter: f })}
+            />
+          )}
+        </>
+      )}
+
+      {/* --- Cluster --- */}
+      {dist === 'cluster' && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-20 shrink-0">Count</span>
+            <input
+              type="number"
+              value={pop.count}
+              onChange={(e) => onChange({ count: parseInt(e.target.value) || 0 })}
+              min={0}
+              max={5000}
+              className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-20 shrink-0">Center X</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round((pop.clusterX ?? 0.5) * 100)}
+              onChange={(e) => onChange({ clusterX: parseInt(e.target.value) / 100 })}
+              className="flex-1 accent-blue-500"
+            />
+            <span className="text-xs text-gray-400 w-8 text-right">
+              {Math.round((pop.clusterX ?? 0.5) * 100)}%
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-20 shrink-0">Center Y</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round((pop.clusterY ?? 0.5) * 100)}
+              onChange={(e) => onChange({ clusterY: parseInt(e.target.value) / 100 })}
+              className="flex-1 accent-blue-500"
+            />
+            <span className="text-xs text-gray-400 w-8 text-right">
+              {Math.round((pop.clusterY ?? 0.5) * 100)}%
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 w-20 shrink-0">Radius</span>
+            <input
+              type="number"
+              value={pop.clusterRadius ?? 50}
+              onChange={(e) => onChange({ clusterRadius: parseInt(e.target.value) || 10 })}
+              min={5}
+              max={500}
+              className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+            />
+            <span className="text-xs text-gray-500">px</span>
+          </div>
+        </>
+      )}
+
+      {/* Terrain filter for random placement */}
+      {dist === 'random' && terrainEnabled && (
+        <TerrainFilterEditor
+          filter={pop.terrainFilter}
+          onChange={(f) => onChange({ terrainFilter: f })}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// TerrainFilterEditor
+// ============================================================================
+
+const COMPARISON_LABELS = [
+  { value: 'gt',  label: '>'  },
+  { value: 'gte', label: '≥'  },
+  { value: 'lt',  label: '<'  },
+  { value: 'lte', label: '≤'  },
+  { value: 'eq',  label: '='  },
+];
+
+interface TerrainFilterEditorProps {
+  filter: Population['terrainFilter'];
+  onChange: (filter: Population['terrainFilter']) => void;
+}
+
+function TerrainFilterEditor({ filter, onChange }: TerrainFilterEditorProps) {
+  const enabled = filter !== undefined;
+
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) =>
+            onChange(e.target.checked ? { comparison: 'gt', threshold: 128 } : undefined)
+          }
+          className="w-3.5 h-3.5 accent-blue-500"
+        />
+        <span className="text-xs text-gray-400">Filter by terrain value</span>
+      </label>
+      {enabled && filter && (
+        <div className="flex items-center gap-1 pl-5">
+          <span className="text-xs text-gray-500">value</span>
+          <select
+            value={filter.comparison}
+            onChange={(e) =>
+              onChange({ ...filter, comparison: e.target.value as NonNullable<Population['terrainFilter']>['comparison'] })
+            }
+            className="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs focus:outline-none focus:border-blue-500"
+          >
+            {COMPARISON_LABELS.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          <input
+            type="number"
+            value={filter.threshold}
+            onChange={(e) =>
+              onChange({ ...filter, threshold: Math.max(0, Math.min(255, parseInt(e.target.value) || 0)) })
+            }
+            min={0}
+            max={255}
+            className="w-14 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs focus:outline-none focus:border-blue-500"
+          />
+          <span className="text-xs text-gray-500">(0–255)</span>
+        </div>
+      )}
+    </div>
   );
 }
 

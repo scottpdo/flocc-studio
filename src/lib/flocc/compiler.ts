@@ -6,7 +6,7 @@
  */
 
 import { Environment, Agent, Terrain, Colors, utils } from 'flocc';
-import type { StudioModel, AgentType, Behavior, TerrainConfig } from '@/types';
+import type { StudioModel, AgentType, Behavior, TerrainConfig, Population } from '@/types';
 import type { AgentTypeMetadata } from './SimulationEngine';
 
 // ============================================================================
@@ -70,11 +70,14 @@ export function compileModel(model: StudioModel): CompiledModel {
 
       const tickFn = tickFunctions.get(agentType.id);
 
-      for (let i = 0; i < pop.count; i++) {
+      const terrainScale = model.terrain?.scale ?? 1;
+      const positions = generatePositions(pop, envConfig, env, terrainScale);
+
+      for (const pos of positions) {
         const agent = new Agent();
         agent.set('typeId', agentType.id);
-        agent.set('x', utils.random(0, envConfig.width - 1, true));
-        agent.set('y', utils.random(0, envConfig.height - 1, true));
+        agent.set('x', pos.x);
+        agent.set('y', pos.y);
         
         // Initialize custom properties
         for (const prop of agentType.properties) {
@@ -118,6 +121,128 @@ export function compileModel(model: StudioModel): CompiledModel {
     : null;
 
   return { setup, agentTypes, envConfig, terrainSetup };
+}
+
+// ============================================================================
+// Agent Placement
+// ============================================================================
+
+function checkCondition(value: number, comparison: string, threshold: number): boolean {
+  switch (comparison) {
+    case 'gt':  return value > threshold;
+    case 'lt':  return value < threshold;
+    case 'gte': return value >= threshold;
+    case 'lte': return value <= threshold;
+    case 'eq':  return value === threshold;
+    default:    return true;
+  }
+}
+
+/**
+ * Generate pixel-space {x, y} positions for a population based on its distribution.
+ * Terrain must already be initialised in env.helpers.terrain before this is called.
+ */
+function generatePositions(
+  pop: Population,
+  envConfig: { width: number; height: number },
+  env: Environment,
+  terrainScale: number,
+): { x: number; y: number }[] {
+  const positions: { x: number; y: number }[] = [];
+  const terrain = (env as any).helpers?.terrain as Terrain | undefined;
+
+  /** Pixels-to-luminance sample at a pixel-space point */
+  function sampleLuminance(px: number, py: number): number {
+    if (!terrain) return 0;
+    const gx = Math.floor(px / terrainScale);
+    const gy = Math.floor(py / terrainScale);
+    const raw = terrain.sample(gx, gy);
+    return typeof raw === 'number' ? raw : luminance(raw as { r: number; g: number; b: number; a: number });
+  }
+
+  switch (pop.distribution) {
+    case 'grid-fill': {
+      const gridW = Math.floor(envConfig.width  / terrainScale);
+      const gridH = Math.floor(envConfig.height / terrainScale);
+
+      // Collect all eligible cells (respecting terrainFilter)
+      const eligible: { gx: number; gy: number }[] = [];
+      for (let gy = 0; gy < gridH; gy++) {
+        for (let gx = 0; gx < gridW; gx++) {
+          if (pop.terrainFilter && terrain) {
+            const raw = terrain.sample(gx, gy);
+            const value = typeof raw === 'number'
+              ? raw
+              : luminance(raw as { r: number; g: number; b: number; a: number });
+            if (!checkCondition(value, pop.terrainFilter.comparison, pop.terrainFilter.threshold)) continue;
+          }
+          eligible.push({ gx, gy });
+        }
+      }
+
+      // Fisher-Yates shuffle so we pick a random subset
+      for (let i = eligible.length - 1; i > 0; i--) {
+        const j = Math.floor(utils.random(0, i + 1, true));
+        const tmp = eligible[i]; eligible[i] = eligible[j]; eligible[j] = tmp;
+      }
+
+      // density takes priority over count when set
+      const targetCount = pop.density !== undefined
+        ? Math.floor(pop.density * eligible.length)
+        : Math.min(pop.count, eligible.length);
+
+      for (let i = 0; i < targetCount; i++) {
+        const { gx, gy } = eligible[i];
+        // Place at cell centre
+        positions.push({
+          x: gx * terrainScale + terrainScale / 2,
+          y: gy * terrainScale + terrainScale / 2,
+        });
+      }
+      break;
+    }
+
+    case 'cluster': {
+      const cx = (pop.clusterX ?? 0.5) * envConfig.width;
+      const cy = (pop.clusterY ?? 0.5) * envConfig.height;
+      const radius = pop.clusterRadius ?? Math.min(envConfig.width, envConfig.height) * 0.1;
+
+      for (let i = 0; i < pop.count; i++) {
+        const angle = utils.random(0, Math.PI * 2, true);
+        const r = utils.random(0, radius, true);
+        positions.push({
+          x: Math.max(0, Math.min(envConfig.width  - 1, cx + Math.cos(angle) * r)),
+          y: Math.max(0, Math.min(envConfig.height - 1, cy + Math.sin(angle) * r)),
+        });
+      }
+      break;
+    }
+
+    case 'random':
+    default: {
+      const rx = pop.region?.x ?? 0;
+      const ry = pop.region?.y ?? 0;
+      const rw = pop.region?.width  ?? envConfig.width;
+      const rh = pop.region?.height ?? envConfig.height;
+
+      // With terrainFilter we rejection-sample; cap attempts to avoid infinite loops
+      const maxAttempts = pop.terrainFilter ? pop.count * 20 : pop.count;
+      let attempts = 0;
+      while (positions.length < pop.count && attempts < maxAttempts) {
+        attempts++;
+        const x = utils.random(rx, rx + rw - 1, true);
+        const y = utils.random(ry, ry + rh - 1, true);
+        if (pop.terrainFilter) {
+          const value = sampleLuminance(x, y);
+          if (!checkCondition(value, pop.terrainFilter.comparison, pop.terrainFilter.threshold)) continue;
+        }
+        positions.push({ x, y });
+      }
+      break;
+    }
+  }
+
+  return positions;
 }
 
 // ============================================================================
